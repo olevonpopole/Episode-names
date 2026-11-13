@@ -1,4 +1,5 @@
 ﻿using Episode_Names.Helper;
+using Episode_Names.Metadata;
 using HtmlAgilityPack;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,8 @@ namespace Episode_Names.Anisearch
     public partial class Anisearch_Table : Form
     {
         private List<string> episodeList;
+        private const int TvMazeIndex = 4;
+        private readonly IEpisodeMetadataProvider tvMaze = new TvMazeProvider();
         private readonly string tvdbDomain = "https://www.thetvdb.com";
         private readonly string aniDBDomain = "https://anidb.net/perl-bin/";
         private readonly string fernsehserienDomain = "https://www.fernsehserien.de";
@@ -32,7 +35,8 @@ namespace Episode_Names.Anisearch
         private void setData()
         {
             TopMost = Properties.Settings.Default.Foreground;
-            cmbWebsite.SelectedIndex = Properties.Settings.Default.SelectedWebsite;
+            int selected = Properties.Settings.Default.SelectedWebsite;
+            cmbWebsite.SelectedIndex = selected >= 0 && selected < cmbWebsite.Items.Count ? selected : TvMazeIndex;
             setCmbLanguages();
 
         }
@@ -41,13 +45,13 @@ namespace Episode_Names.Anisearch
 
         private void setCmbLanguages()
         {
-            cmbLanguageEpisodes.DataSource = cmbWebsite.SelectedIndex == 0 ? getEnglish() : cmbWebsite.SelectedIndex == 2 ? getGerman() : getLanguagesWithJapanese();
+            cmbLanguageEpisodes.DataSource = cmbWebsite.SelectedIndex == 0 || cmbWebsite.SelectedIndex == TvMazeIndex ? getEnglish() : cmbWebsite.SelectedIndex == 2 ? getGerman() : getLanguagesWithJapanese();
             cmbLanguageEpisodes.DisplayMember = "Value";
             cmbLanguageEpisodes.ValueMember = "Key";
 
 
             List<KeyValuePair<string, string>> languages = new List<KeyValuePair<string, string>>();
-            if (cmbWebsite.SelectedIndex == 0)
+            if (cmbWebsite.SelectedIndex == 0 || cmbWebsite.SelectedIndex == TvMazeIndex)
             {
                 languages = getEnglish();
             }
@@ -69,8 +73,8 @@ namespace Episode_Names.Anisearch
             cmbLanguageSearch.DisplayMember = "Value";
             cmbLanguageSearch.ValueMember = "Key";
 
-            cmbLanguageSearch.SelectedIndex = Properties.Settings.Default.SecondLanguage;
-            cmbLanguageEpisodes.SelectedIndex = Properties.Settings.Default.Language;
+            cmbLanguageSearch.SelectedIndex = Math.Min(Math.Max(0, Properties.Settings.Default.SecondLanguage), cmbLanguageSearch.Items.Count - 1);
+            cmbLanguageEpisodes.SelectedIndex = Math.Min(Math.Max(0, Properties.Settings.Default.Language), cmbLanguageEpisodes.Items.Count - 1);
 
         }
 
@@ -119,8 +123,14 @@ namespace Episode_Names.Anisearch
         }
 
 
-        private void btnOk_Click(object sender, EventArgs e)
+        private async void btnOk_Click(object sender, EventArgs e)
         {
+            if (cmbWebsite.SelectedIndex == TvMazeIndex)
+            {
+                await LoadTvMazeEpisodesAsync();
+                return;
+            }
+
             string language = ((KeyValuePair<string, string>)cmbLanguageEpisodes.SelectedItem).Key;
             int selectedIndex = cmbWebsite.SelectedIndex;
             string url = txtUrl.Text;
@@ -466,10 +476,16 @@ namespace Episode_Names.Anisearch
             ControlBox = btnCheckURL.Enabled = cmbLanguageSearch.Enabled = cmbLanguageEpisodes.Enabled = cmbWebsite.Enabled = cmbSeasons.Enabled = btnOk.Enabled = listResult.Enabled = txtSearch.Enabled = status;
         }
 
-        private void txtSearch_KeyDown(object sender, KeyEventArgs e)
+        private async void txtSearch_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
             {
+                if (cmbWebsite.SelectedIndex == TvMazeIndex)
+                {
+                    e.SuppressKeyPress = true;
+                    await SearchTvMazeAsync();
+                    return;
+                }
                 StartProgressBar();
 
                 string searchText = txtSearch.Text;
@@ -700,10 +716,15 @@ namespace Episode_Names.Anisearch
             }
         }
 
-        private void listResult_SelectedIndexChanged(object sender, EventArgs e)
+        private async void listResult_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (listResult.SelectedIndex != -1)
             {
+                if (cmbWebsite.SelectedIndex == TvMazeIndex)
+                {
+                    await LoadTvMazeSeasonsAsync(((KeyValuePair<string, string>)listResult.SelectedItem).Key);
+                    return;
+                }
                 string url = ((KeyValuePair<string,string>)listResult.SelectedItem).Key;
                 StartProgressBar();
                 int selectedIndex = cmbWebsite.SelectedIndex;
@@ -778,12 +799,18 @@ namespace Episode_Names.Anisearch
         private void cmbWebsite_SelectedIndexChanged(object sender, EventArgs e)
         {
             listResult.DataSource = null;
+            cmbSeasons.DataSource = null;
             lblSeason.Visible = cmbSeasons.Visible = cmbWebsite.SelectedIndex > 1;
             setCmbLanguages();
         }
 
-        private void btnCheckURL_Click(object sender, EventArgs e)
+        private async void btnCheckURL_Click(object sender, EventArgs e)
         {
+            if (cmbWebsite.SelectedIndex == TvMazeIndex)
+            {
+                await LoadTvMazeSeasonsAsync(txtUrl.Text);
+                return;
+            }
             string url = txtUrl.Text;
             string language = ((KeyValuePair<string, string>)cmbLanguageEpisodes.SelectedItem).Key;
             bool valid = cmbWebsite.SelectedIndex == 1 && checkUrlAnisearch(language,url, out url) || cmbWebsite.SelectedIndex == 0 && checkUrlAniDB(url);
@@ -841,6 +868,156 @@ namespace Episode_Names.Anisearch
                 }
             }
             return valid;
+        }
+
+
+        private void SetTvMazeBusy(bool busy)
+        {
+            pgLoading.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
+            setEnabled(!busy);
+        }
+
+        private async System.Threading.Tasks.Task SearchTvMazeAsync()
+        {
+            string query = txtSearch.Text.Trim();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Information, "Bitte einen Serientitel eingeben.");
+                return;
+            }
+
+            SetTvMazeBusy(true);
+            try
+            {
+                IReadOnlyList<SeriesMatch> matches = await tvMaze.SearchSeriesAsync(query, CancellationToken.None);
+                var links = matches.Where(match => !string.IsNullOrEmpty(match.WebUrl))
+                    .Select(match => new KeyValuePair<string, string>(match.WebUrl,
+                        match.Name + (match.PremiereYear.HasValue ? " (" + match.PremiereYear.Value + ")" : "")))
+                    .ToList();
+                setReceivedUrls(links);
+                if (links.Count == 0)
+                    MessageHandler.MessagesOK(MessageBoxIcon.Information, "Keine Serien auf TVmaze gefunden.");
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage(ex);
+            }
+            finally
+            {
+                if (!IsDisposed)
+                    SetTvMazeBusy(false);
+            }
+        }
+
+        private async System.Threading.Tasks.Task LoadTvMazeSeasonsAsync(string showUrl)
+        {
+            string id;
+            if (!TvMazeProvider.TryGetShowId(showUrl, out id))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte eine TVmaze-Serien-URL oder eine numerische Serien-ID eingeben.");
+                return;
+            }
+
+            SetTvMazeBusy(true);
+            try
+            {
+                IReadOnlyList<SeasonMetadata> seasons = await tvMaze.GetSeasonsAsync(id, CancellationToken.None);
+                if (IsDisposed || cmbWebsite.SelectedIndex != TvMazeIndex)
+                    return;
+
+                // A slower request for an old selection must not overwrite a newer selection.
+                if (listResult.SelectedIndex >= 0 && showUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(((KeyValuePair<string, string>)listResult.SelectedItem).Key,
+                        showUrl, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(txtUrl.Text, showUrl, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                txtUrl.Text = showUrl;
+                var items = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("all", "Alle Staffeln (ohne Specials)")
+                };
+                items.AddRange(seasons.Select(season => new KeyValuePair<string, string>(
+                    season.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    season.Number == 0 ? "Specials (Staffel 0)" : season.Name)));
+                cmbSeasons.DataSource = items;
+                cmbSeasons.DisplayMember = "Value";
+                cmbSeasons.ValueMember = "Key";
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage(ex);
+            }
+            finally
+            {
+                if (!IsDisposed)
+                    SetTvMazeBusy(false);
+            }
+        }
+
+        private async System.Threading.Tasks.Task LoadTvMazeEpisodesAsync()
+        {
+            string id;
+            if (!TvMazeProvider.TryGetShowId(txtUrl.Text, out id))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte zuerst eine TVmaze-Serie auswählen oder eine gültige TVmaze-URL eingeben.");
+                return;
+            }
+
+            string seasonKey = (cmbSeasons.SelectedItem as KeyValuePair<string, string>?)?.Key ?? "all";
+            bool allSeasons = seasonKey == "all";
+            int season = 0;
+            if (!allSeasons && !int.TryParse(seasonKey, out season))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning, "Ungültige Staffel.");
+                return;
+            }
+
+            SetTvMazeBusy(true);
+            try
+            {
+                IReadOnlyList<EpisodeMetadata> episodes = await tvMaze.GetEpisodesAsync(id, true, CancellationToken.None);
+                var candidates = episodes.Where(ep => allSeasons ? !ep.IsSpecial : ep.SeasonNumber == season).ToList();
+                var usable = candidates.Where(ep => ep.EpisodeNumber.HasValue && ep.EpisodeNumber.Value > 0
+                    && !string.IsNullOrWhiteSpace(ep.Title)).OrderBy(ep => ep.SeasonNumber)
+                    .ThenBy(ep => ep.EpisodeNumber.Value).ToList();
+
+                if (usable.Count == 0)
+                    throw new MetadataProviderException("Keine eindeutig nummerierten Episodentitel für diese Auswahl vorhanden.");
+
+                int skipped = candidates.Count - usable.Count;
+                if (skipped > 0)
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        skipped + " Episoden ohne eindeutige Nummer oder Titel wurden ausgelassen.");
+
+                episodeList = usable.Select(ep =>
+                    (allSeasons
+                        ? "S" + ep.SeasonNumber.ToString("00") + "E" + ep.EpisodeNumber.Value.ToString("00")
+                        : ep.EpisodeNumber.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    + "\t" + CleanTvMazeTitle(ep.Title)).ToList();
+
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage(ex);
+            }
+            finally
+            {
+                if (!IsDisposed)
+                    SetTvMazeBusy(false);
+            }
+        }
+
+        private static string CleanTvMazeTitle(string title)
+        {
+            char[] invalid = Path.GetInvalidFileNameChars();
+            return new string(title.Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ')
+                .Select(ch => invalid.Contains(ch) || char.IsControl(ch) ? ' ' : ch).ToArray())
+                .Trim().TrimEnd('.', ' ');
         }
 
         private bool checkUrlAniDB(string url)
