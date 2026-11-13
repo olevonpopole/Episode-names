@@ -944,6 +944,8 @@ namespace Episode_Names.Anisearch
                 cmbSeasons.DataSource = items;
                 cmbSeasons.DisplayMember = "Value";
                 cmbSeasons.ValueMember = "Key";
+                // Do not assume a season for the user's files. Require an explicit choice.
+                cmbSeasons.SelectedIndex = -1;
             }
             catch (Exception ex)
             {
@@ -966,7 +968,13 @@ namespace Episode_Names.Anisearch
                 return;
             }
 
-            string seasonKey = (cmbSeasons.SelectedItem as KeyValuePair<string, string>?)?.Key ?? "all";
+            if (!(cmbSeasons.SelectedItem is KeyValuePair<string, string>))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte zuerst eine Staffel oder 'Alle Staffeln' ausdrücklich auswählen.");
+                return;
+            }
+            string seasonKey = ((KeyValuePair<string, string>)cmbSeasons.SelectedItem).Key;
             bool allSeasons = seasonKey == "all";
             int season = 0;
             if (!allSeasons && !int.TryParse(seasonKey, out season))
