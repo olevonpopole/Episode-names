@@ -1,6 +1,6 @@
 # Episode Names — Metadata modernization plan
 
-Status (2026-11-13): TVmaze and optional TMDB providers, WinForms integration and offline tests implemented; centralized rename preview still pending. Branch: `modernization/metadata-providers`.
+Status (2026-11-14): TVmaze and optional TMDB providers, WinForms integration and a centralized safe rename preview implemented; Windows CI verification and manual GUI smoke tests apply. Branch: `modernization/metadata-providers`.
 
 ## Goals
 - Keep the existing Windows Forms .NET Framework 4.8 application and its file tools working.
@@ -11,7 +11,7 @@ Status (2026-11-13): TVmaze and optional TMDB providers, WinForms integration an
 
 ## Current code findings
 - `Rename.9/View/SearchWebsite.cs` combines UI, language selection, searches and HTML parsing for AniSearch, AniDB, TheTVDB and fernsehserien.de.
-- `Rename.9/View/Form1.cs` performs renames via `File.Move` and contains undo-related logic.
+- Historically, `Rename.9/View/Form1.cs` performed direct `File.Move` calls. All supported rename modes and the restore action now use a shared validated preview.
 - `Rename.9/Episode-Names.csproj` targets .NET Framework 4.8, Windows Forms, and references HtmlAgilityPack 1.11.4.
 - `Rename.9/App.config` persists language, secondary language and selected website by numeric index. Migration must preserve legacy settings.
 
@@ -28,14 +28,14 @@ Status (2026-11-13): TVmaze and optional TMDB providers, WinForms integration an
 ## Execution phases
 - A: DONE — Provider interface, models, HTTP infrastructure and offline test runner.
 - B: DONE — TVmaze keyless search and episodes; optional TMDB v3/Read Token credentials, German-English episode fallback and WinForms selection.
-- C: PARTIAL — UI selection for TVmaze with explicit season choice; anime matching and central safe rename preview remain pending.
+- C: PARTIAL — UI selection with explicit season choice and safe rename preview implemented; anime absolute numbering and live GUI validation remain pending.
 - D: CI Windows build, regression checks, documentation and release.
 
 ## Acceptance criteria
 - Fresh installation with no API key can search and fetch English episode names via TVmaze.
 - With TMDB configured, German episode names are preferred with English fallback, with source/language visible.
 - Users can select the correct show and numbering scheme before renaming.
-- No file changes on failed validation; preview shows exact source-to-destination mapping.
+- No file changes on failed validation; preview shows exact source-to-destination mapping and blocks ambiguous/dangerous moves.
 - Existing format strings, settings, manual editing and non-metadata rename tools continue working.
 - Build and tests run on a Windows GitHub Actions runner.
 
@@ -61,3 +61,11 @@ Status (2026-11-13): TVmaze and optional TMDB providers, WinForms integration an
 - UI supports entering, saving and deleting the key, explicit season choice and a language-count confirmation before metadata import.
 - Tests verify authenticated requests, localized/English placeholder fallback, missing titles, specials and invalid credentials using offline fixtures.
 - A manual Windows GUI and live API smoke test still need to be performed before release.
+
+## Safe rename preview and conflict handling
+- `Renaming/RenamePlanner.cs` constructs a read-only plan and blocks invalid Windows filenames, reserved device names, duplicate targets (case-insensitive), existing destinations, unsafe swaps/case-only changes, missing sources, overlong paths and moves outside the source folder.
+- `View/RenamePreviewDialog.cs` shows source, destination and conflicts. Nothing is renamed until the user explicitly confirms the complete conflict-free plan.
+- Data-driven renames require matching row/file counts; the separate number, insert/delete positions, search/replace and restore paths use the same preview.
+- Execution revalidates immediately before the first move. On an unexpected filesystem failure, successfully performed moves are rolled back in reverse order on a best-effort basis, with an explicit warning if recovery is incomplete.
+- Offline file-system tests include conflict detection, safe execution/undo, changed target after preview and injected failure with rollback.
+- Conservative limitations: swaps and case-only renames are intentionally blocked rather than staged; external concurrency and permission failures still require care. Manual Windows GUI regression testing remains outstanding.
