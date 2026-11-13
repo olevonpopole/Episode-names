@@ -77,6 +77,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Core" />
     <Reference Include="System.DirectoryServices" />
@@ -96,6 +97,8 @@
     <Compile Include="Metadata\IEpisodeMetadataProvider.cs" />
     <Compile Include="Metadata\MetadataModels.cs" />
     <Compile Include="Metadata\TvMazeProvider.cs" />
+    <Compile Include="Metadata\TmdbProvider.cs" />
+    <Compile Include="Metadata\TmdbCredentialStore.cs" />
     <Compile Include="Exceptions\AbortException.cs" />
     <Compile Include="Helper\ErrorHelper.cs" />
     <Compile Include="Helper\FileHelper.cs" />
