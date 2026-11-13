@@ -1,6 +1,6 @@
 # Episode Names — Metadata modernization plan
 
-Status: design baseline; implementation not yet started. Branch: `modernization/metadata-providers`.
+Status (2026-11-13): Provider contract and TVmaze integration implemented and verified by Windows CI; TMDB and centralized rename preview pending. Branch: `modernization/metadata-providers`.
 
 ## Goals
 - Keep the existing Windows Forms .NET Framework 4.8 application and its file tools working.
@@ -26,9 +26,9 @@ Status: design baseline; implementation not yet started. Branch: `modernization/
 8. Add test fixtures for ordinary TV series, anime absolute numbering, split seasons, specials, German missing translation, API failures and rate limits.
 
 ## Execution phases
-- A: Extract provider interface, models, HTTP infrastructure and unit tests.
-- B: TVmaze integration and keyless end-to-end search/episode listing; optional TMDB and settings.
-- C: UI adaptation, anime matching and safe rename preview.
+- A: DONE — Provider interface, models, HTTP infrastructure and offline test runner.
+- B: PARTIAL — TVmaze keyless search, seasons and episodes integrated in WinForms; TMDB optional provider and its settings remain pending.
+- C: PARTIAL — UI selection for TVmaze with explicit season choice; anime matching and central safe rename preview remain pending.
 - D: CI Windows build, regression checks, documentation and release.
 
 ## Acceptance criteria
@@ -44,3 +44,12 @@ Status: design baseline; implementation not yet started. Branch: `modernization/
 - Treat API responses as untrusted and sanitize filenames.
 - Avoid website scraping as a primary metadata path.
 - Do not migrate frameworks or redesign the entire UI in the first implementation phase.
+
+## Implemented and checked
+- New files in `Rename.9/Metadata/` introduce a provider contract, normalized models and `TvMazeProvider`.
+- Existing WinForms `SearchWebsite` can search TVmaze, select a show and fetch one season or explicitly all regular episodes.
+- TVmaze show and episode IDs remain provider-specific; absolute numbering is intentionally left unknown.
+- Fresh installs select TVmaze (index 4); saved indices 0–3 still map to the legacy providers.
+- Offline fixture tests cover show URL validation, search, season/episode mapping, specials and 404 handling.
+- GitHub Actions builds the existing .NET Framework 4.8 application and executes the offline checks on Windows.
+- Manual GUI validation on Windows and live provider smoke tests are still recommended before merging/releasing.
