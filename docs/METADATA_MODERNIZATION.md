@@ -1,6 +1,6 @@
 # Episode Names — Metadata modernization plan
 
-Status (2026-11-13): Provider contract and TVmaze integration implemented and verified by Windows CI; TMDB and centralized rename preview pending. Branch: `modernization/metadata-providers`.
+Status (2026-11-13): TVmaze and optional TMDB providers, WinForms integration and offline tests implemented; centralized rename preview still pending. Branch: `modernization/metadata-providers`.
 
 ## Goals
 - Keep the existing Windows Forms .NET Framework 4.8 application and its file tools working.
@@ -27,7 +27,7 @@ Status (2026-11-13): Provider contract and TVmaze integration implemented and ve
 
 ## Execution phases
 - A: DONE — Provider interface, models, HTTP infrastructure and offline test runner.
-- B: PARTIAL — TVmaze keyless search, seasons and episodes integrated in WinForms; TMDB optional provider and its settings remain pending.
+- B: DONE — TVmaze keyless search and episodes; optional TMDB v3/Read Token credentials, German-English episode fallback and WinForms selection.
 - C: PARTIAL — UI selection for TVmaze with explicit season choice; anime matching and central safe rename preview remain pending.
 - D: CI Windows build, regression checks, documentation and release.
 
@@ -53,3 +53,11 @@ Status (2026-11-13): Provider contract and TVmaze integration implemented and ve
 - Offline fixture tests cover show URL validation, search, season/episode mapping, specials and 404 handling.
 - GitHub Actions builds the existing .NET Framework 4.8 application and executes the offline checks on Windows.
 - Manual GUI validation on Windows and live provider smoke tests are still recommended before merging/releasing.
+
+## Optional TMDB implementation
+- `TmdbProvider` implements the same provider contract as TVmaze, with German and English locales and per-episode fallback.
+- A per-season method avoids querying unrelated seasons when a single season is requested.
+- `TmdbCredentialStore` encrypts the user's credential with Windows DPAPI (CurrentUser); there is no repository credential or global API key.
+- UI supports entering, saving and deleting the key, explicit season choice and a language-count confirmation before metadata import.
+- Tests verify authenticated requests, localized/English placeholder fallback, missing titles, specials and invalid credentials using offline fixtures.
+- A manual Windows GUI and live API smoke test still need to be performed before release.
