@@ -113,19 +113,21 @@ namespace Episode_Names.Metadata.Tests
 
             var tmdb = (TmdbProvider)provider;
             var episodes = await tmdb.GetSeasonEpisodesAsync("42", 1, CancellationToken.None);
-            Check(episodes.Count == 3 && episodes[0].Title == "Aufbruch" && episodes[0].Language == "de",
+            Check(episodes.Count == 4 && episodes[0].Title == "Aufbruch" && episodes[0].Language == "de",
                 "TMDB German translation");
             Check(episodes[1].Title == "Rescue" && episodes[1].Language == "en",
                 "TMDB fallback from German placeholder");
             Check(episodes[2].Title == "" && episodes[2].Language == "und",
                 "TMDB unknown title not invented");
+            Check(episodes[3].Title == "English only" && episodes[3].Language == "en",
+                "TMDB episode missing in German listing falls back to English");
             Check(episodes.All(x => x.AbsoluteNumber == null) && episodes.All(x => !x.IsSpecial),
                 "no absolute mapping guessed");
 
             var withoutSpecials = await provider.GetEpisodesAsync("42", false, CancellationToken.None);
-            Check(withoutSpecials.Count == 3, "TMDB specials omitted by default");
+            Check(withoutSpecials.Count == 4, "TMDB specials omitted by default");
             var withSpecials = await provider.GetEpisodesAsync("42", true, CancellationToken.None);
-            Check(withSpecials.Count == 4 && withSpecials[0].IsSpecial, "TMDB specials opt-in");
+            Check(withSpecials.Count == 5 && withSpecials[0].IsSpecial, "TMDB specials opt-in");
 
             var bearerHandler = new TmdbFixtureHandler();
             var bearerProvider = new TmdbProvider("eyJ.read.access.token", "en", new HttpClient(bearerHandler));
@@ -173,7 +175,7 @@ namespace Episode_Names.Metadata.Tests
                 else if (path == "/3/tv/42/season/1")
                     json = german
                         ? "{\"episodes\":[{\"id\":1001,\"episode_number\":1,\"name\":\"Aufbruch\"},{\"id\":1002,\"episode_number\":2,\"name\":\"Folge 2\"},{\"id\":1003,\"episode_number\":3,\"name\":\"\"}]}"
-                        : "{\"episodes\":[{\"id\":1001,\"episode_number\":1,\"name\":\"Departure\"},{\"id\":1002,\"episode_number\":2,\"name\":\"Rescue\"},{\"id\":1003,\"episode_number\":3,\"name\":\"Episode 3\"}]}";
+                        : "{\"episodes\":[{\"id\":1001,\"episode_number\":1,\"name\":\"Departure\"},{\"id\":1002,\"episode_number\":2,\"name\":\"Rescue\"},{\"id\":1003,\"episode_number\":3,\"name\":\"Episode 3\"},{\"id\":1004,\"episode_number\":4,\"name\":\"English only\"}]}";
                 else
                     throw new InvalidOperationException("Unexpected TMDB route: " + path);
 
