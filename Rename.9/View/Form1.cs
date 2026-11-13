@@ -1,6 +1,7 @@
 ﻿using Episode_Names.Anisearch;
 using Episode_Names.Exceptions;
 using Episode_Names.Helper;
+using Episode_Names.Renaming;
 using Episode_Names.View;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,6 @@ namespace Episode_Names
         List<string> oldData;
         List<string> newData; //old- und newData wird für "Restore" benötigt; um die alten Filenamen wiederherzustelen muss man auch den neuen wissen
         List<string> data;
-        bool abort;
         #endregion
 
 
@@ -45,7 +45,6 @@ namespace Episode_Names
             txtSearch.Text = Properties.Settings.Default.SR_Search;
             pgBar.Value = cmbOption.SelectedIndex = 0;
             txtMessage.Text = "";
-            abort = false;
             Updater.CheckUpdate(true, pgBar);
         }
         #endregion
@@ -63,7 +62,6 @@ namespace Episode_Names
             {
                 renameWithoutData_Click(false);
             }
-            abort = false;
         }
         #endregion
 
@@ -73,109 +71,109 @@ namespace Episode_Names
         {
             txtMessage.Text = "";
             pgBar.Value = 0;
-            oldData = new List<string>();
-            newData = new List<string>();
+            // Preserve the last successful undo mapping if the user cancels a preview.
         }
         #endregion
 
 
-        #region Button "Rename"-Klick. Überprüfen welche Kategorie (OnlyNumber, Anzahl der Datensätze stimmen mit Dateien im Ordner überein)
+        #region Metadata-basierte Umbenennung und sichere Vorschau
         private void btnRename_Click()
         {
-            if (data != null || Properties.Settings.Default.OnlyNumber)
+            if (Properties.Settings.Default.OnlyNumber)
             {
-                try
-                {
-                    #region Falls nur %n im Format String ist, wird alles nach diesem Schema umbenannt
-                    if (Properties.Settings.Default.OnlyNumber)
-                    {
-                        renameWithoutData_Click(true);
-                        txtMessage.Text = "Finished!!";
-                        return;
-                    }
-                    #endregion
-
-                    List<FileInfo> infos = new List<FileInfo>(new DirectoryInfo(txtPath.Text).GetFiles().Select(f => f).Where(f => (f.Attributes & FileAttributes.Hidden) == 0));
-                    infos.Sort(new StringComparator());
-                    int countFileLines = data?.Count ?? 0;
-                    pgBar.Maximum = infos.Count;
-                    DialogResult? result = null;
-
-                    
-
-                    #region Überprüfen ob Datensätze mit Dateianzahl übereinstimmt
-                    if (infos.Count > countFileLines)
-                        result = MessageHandler.MessagesYesNo(MessageBoxIcon.Exclamation, "Im Ordner befinden sich mehr Dateien als Zeilen im File-Dokument.\nVorgang trotzdem fortsetzen?");
-
-                    else if (infos.Count < countFileLines)
-                        result = MessageHandler.MessagesYesNo(MessageBoxIcon.Exclamation, "Im Ordner befinden sich weniger Dateien als Zeilen im File-Dokument.\nVorgang trotzdem fortsetzen?");
-                    #endregion
-
-                    if (result == DialogResult.Yes || result == null)
-                    {
-                        RenameFiles(infos);
-                        txtMessage.Text = "Finished!!";
-                    }
-
-                }
-
-
-                catch (IOException)
-                {
-                    DialogResult? result = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, "Umbenennen nicht möglich, da sich schon eine Datei mit gleichen Namen im Ordner befindet.\nRestore durchführen?");
-                    if (result == DialogResult.Yes)
-                    {
-                        restore();
-                    }
-                }
-
-        
-
-                finally
-                {
-                    pgBar.Value = pgBar.Maximum;
-                }
-
-               
+                renameWithoutData_Click(true);
+                return;
             }
-            else
-                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation,"Es wurden keine Daten gesetzt");
-                 
-        }
+            if (data == null)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation, "Es wurden keine Daten gesetzt.");
+                return;
+            }
 
-        #endregion
-
-
-        #region Anpassen des Format-Strings und Umbenennen der Dateien
-        private void RenameFiles(List<FileInfo> infos)
-        {
             try
             {
-                foreach(FileInfo info in infos)
+                List<FileInfo> files = GetVisibleFiles();
+                if (files.Count != data.Count)
                 {
-                    if (data.Count > pgBar.Value)
-                    {
-                        #region Anpassen des Format-Strings
-                        string absolutePath = Path.Combine(info.DirectoryName, FormatString(data[pgBar.Value], info.Directory.Name) + info.Extension);
-                        #endregion
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        "Abbruch vor der Vorschau: " + files.Count + " Dateien und " +
+                        data.Count + " Datenzeilen passen nicht zusammen.\n" +
+                        "Bitte fehlende/überzählige Zeilen zuerst im Dateneditor korrigieren.");
+                    return;
+                }
 
-                        if (info.FullName != absolutePath)
-                        {
-                            File.Move(info.FullName, absolutePath);
-                            oldData.Add(info.FullName);
-                            newData.Add(absolutePath);
-                        }
-                    }
-                    pgBar.Value++;
+                pgBar.Maximum = Math.Max(1, files.Count);
+                var requests = new List<RenameRequest>();
+                for (int i = 0; i < files.Count; i++)
+                {
+                    pgBar.Value = i;
+                    FileInfo file = files[i];
+                    string name = FormatString(data[i], file.Directory.Name) + file.Extension;
+                    requests.Add(new RenameRequest(file.FullName, Path.Combine(file.DirectoryName, name)));
+                }
+
+                PreviewAndExecute(requests, false);
+            }
+            catch (Exception ex)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Error,
+                    "Umbenennung nicht geplant; keine Datei wurde geändert.\n" + ex.Message);
+            }
+            finally
+            {
+                pgBar.Value = 0;
+            }
+        }
+
+        private List<FileInfo> GetVisibleFiles()
+        {
+            var directory = new DirectoryInfo(txtPath.Text);
+            List<FileInfo> files = directory.GetFiles()
+                .Where(file => (file.Attributes & FileAttributes.Hidden) == 0).ToList();
+            files.Sort(new StringComparator());
+            return files;
+        }
+
+        /// <summary>
+        /// Every rename mode (including restore) passes through this single
+        /// validation, visual confirmation and revalidated execution path.
+        /// </summary>
+        private bool PreviewAndExecute(IEnumerable<RenameRequest> requests, bool restoring)
+        {
+            RenamePlan plan = RenamePlan.Create(requests);
+            using (var preview = new RenamePreviewDialog(plan))
+            {
+                if (preview.ShowDialog(this) != DialogResult.OK)
+                {
+                    txtMessage.Text = plan.ErrorCount > 0
+                        ? "Umbenennung blockiert: " + plan.ErrorCount + " Konflikte."
+                        : "Vorschau abgebrochen – keine Dateien geändert.";
+                    return false;
                 }
             }
-            catch (AbortException)
-            {
-                //  Wurde nur als Abort-Bedingung geworfen
-            }
-            catch (IndexOutOfRangeException)
-            {
 
+            try
+            {
+                IReadOnlyList<RenameRequest> moves = plan.Execute();
+                if (restoring)
+                {
+                    oldData = null;
+                    newData = null;
+                    txtMessage.Text = "Wiederhergestellt: " + moves.Count + " Dateien.";
+                }
+                else
+                {
+                    oldData = moves.Select(move => move.SourcePath).ToList();
+                    newData = moves.Select(move => move.DestinationPath).ToList();
+                    txtMessage.Text = "Erfolgreich umbenannt: " + moves.Count + " Dateien.";
+                }
+                return true;
+            }
+            catch (IOException ex)
+            {
+                txtMessage.Text = "Abgebrochen – Details beachten.";
+                MessageHandler.MessagesOK(MessageBoxIcon.Error, ex.Message);
+                return false;
             }
         }
         #endregion
@@ -239,26 +237,11 @@ namespace Episode_Names
                         fullname.Append(line.Substring(format.Length, line.Length - format.Length)); //Rest der nach dem %-Befehl steht. Bsp: %nabc also "abc"
                         #endregion
                     }
-                    catch (IndexOutOfRangeException)
+                    catch (IndexOutOfRangeException ex)
                     {
-                        //Falls eine Position im Format-String nicht existiert
-                        if (!abort)
-                        {
-                            DialogResult? res = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, $"Die Position {nbPosition.Value} mit dem Split-String: {txtSplit.Text} gibt es nicht\nVorgang fortsetzen?");
-
-                            if (res == DialogResult.No)
-                            {
-                                res = MessageHandler.MessagesYesNo(MessageBoxIcon.Question, "Restore ausführen?");
-                                if (res == DialogResult.Yes)
-                                    restore();
-                                throw new AbortException();
-                            }
-                            else
-                            {
-                                abort = true;
-                            }
-                        }
-
+                        throw new InvalidOperationException(
+                            "Eine Datenzeile enthält nicht die angeforderte Spalte " +
+                            nbPosition.Value + " (Trennzeichen: " + txtSplit.Text + ").", ex);
                     }
                 }
                 else
@@ -339,42 +322,22 @@ namespace Episode_Names
         #endregion
 
 
-        #region Zurücksetzen der Daten
+        #region Wiederherstellen mit Prüfung aller Zielnamen
         private void restore()
         {
-            pgBar.Value = 0;
-            if (oldData != null)
+            if (oldData == null || newData == null || oldData.Count == 0 ||
+                oldData.Count != newData.Count)
             {
-                try
-                {
-                    pgBar.Maximum = oldData.Count;
-                    for (int count = oldData.Count - 1; count >= 0; count--)
-                    {
-                        File.Move(newData[count], oldData[count]);
-                        pgBar.Value++;
-                    }
-                    oldData = null;
-                    newData = null;
-                    txtMessage.Text += "Restored!";
-                }
-                catch (IOException)
-                {
-                    MessageHandler.MessagesOK(MessageBoxIcon.Error, "Restore nicht möglich, da eine Datei den alten Namen einer anderen Datei besitzt.");
-                }
+                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation,
+                    "Es sind keine umbenannten Dateien zum Wiederherstellen vorhanden.");
+                return;
+            }
 
-                catch (Exception e1)
-                {
-                    ErrorHelper.HandleException(e1);
-                }
-                finally
-                {
-                    pgBar.Value = pgBar.Maximum;
-                }
-            }
-            else
-            {
-                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation, "Es sind keine Daten zum Wiederherstellen vorhanden");
-            }
+            var requests = new List<RenameRequest>();
+            for (int i = oldData.Count - 1; i >= 0; i--)
+                requests.Add(new RenameRequest(newData[i], oldData[i]));
+
+            PreviewAndExecute(requests, true);
         }
         #endregion
 
@@ -579,107 +542,62 @@ namespace Episode_Names
         #endregion
 
 
-        #region Insert-, Delete-Position, Number Klick
+        #region Nummerierung, Positionen und Suchen/Ersetzen mit verpflichtender Vorschau
         private void renameWithoutData_Click(bool? numberClicked)
         {
-            /* numberClicked hat drei bzw. vier Zustände:
-                   null:                        btnNumber clicked
-                   true:                        Der einzige Befehl im Format-String ist %n
-                   false &&  cmbOption.Visible: Insert- oder Delete-Position clicked
-                   false && !cmbOption.Visible: Search & Rename
-            */
-            
-
-            List<FileInfo> infos = new List<FileInfo>( new DirectoryInfo(txtPath.Text).GetFiles().Select(f => f).Where(f => (f.Attributes & FileAttributes.Hidden) == 0));
-            infos.Sort(new StringComparator());
-            
-
-            pgBar.Maximum = infos.Count;
-
             try
             {
-                foreach (FileInfo info in infos)
-                {
-                    #region Anpassen des Format-Strings nach "Number", "Only %n" "Delete", "Insert" oder "Replace"
-                    string absolutePath = info.DirectoryName + "\\";
-                    string filename = info.Name.Replace(info.Extension, "");
+                List<FileInfo> files = GetVisibleFiles();
+                pgBar.Maximum = Math.Max(1, files.Count);
+                var requests = new List<RenameRequest>();
 
-                    #region Button "Number" wurde geklickt
+                for (int index = 0; index < files.Count; index++)
+                {
+                    FileInfo file = files[index];
+                    pgBar.Value = index;
+                    string filename = Path.GetFileNameWithoutExtension(file.Name);
+                    string newName;
+
                     if (numberClicked == null)
                     {
-                        int temp = pgBar.Value + Properties.Settings.Default.startNumber;
-                        string number = nullvalues(pgBar.Maximum - 1 + Properties.Settings.Default.startNumber, temp);
-                        number += temp;
-                        absolutePath += number;
+                        int number = index + Properties.Settings.Default.startNumber;
+                        newName = nullvalues(files.Count - 1 + Properties.Settings.Default.startNumber, number) + number;
                     }
-                    #endregion
-
-                    #region Im FormatString ist der einzige Befehl %n
                     else if (numberClicked == true)
                     {
-                        absolutePath += ReplaceSpecialCharacters(FormatString());
+                        newName = ReplaceSpecialCharacters(FormatString());
                     }
-                    #endregion
-
-                    #region Insert- oder Delete-Position wurde geklickt
                     else if (cmbOption.Visible)
                     {
-                        
-
-                        switch (cmbOption.SelectedIndex)
-                        {
-                            case 1:
-                                absolutePath += DeletePositions(filename);
-                                break;
-
-                            case 2:
-                                txtSplit.Text = ReplaceSpecialCharacters(txtSplit.Text);
-                                absolutePath += InsertPosition(filename);
-                                break;
-                        }
+                        if (cmbOption.SelectedIndex == 1)
+                            newName = DeletePositions(filename);
+                        else if (cmbOption.SelectedIndex == 2)
+                            newName = InsertPosition(filename);
+                        else
+                            throw new InvalidOperationException("Ungültige Umbenennungsoption.");
                     }
-                    #endregion
-
-                    #region Search & Rename wurde geklickt
                     else
                     {
-                        absolutePath += filename.Replace(ReplaceSpecialCharacters(txtSearch.Text), ReplaceSpecialCharacters(txtSplit.Text));
-                    }
-                    absolutePath += info.Extension;
-                    #endregion
-
-                    #endregion
-
-                    if (!info.FullName.Equals(absolutePath))
-                    {
-                        File.Move(info.FullName, absolutePath);
-                        oldData.Add(info.FullName);
-                        newData.Add(absolutePath);
+                        if (string.IsNullOrEmpty(txtSearch.Text))
+                            throw new InvalidOperationException("Bitte einen Suchtext eingeben.");
+                        newName = filename.Replace(ReplaceSpecialCharacters(txtSearch.Text),
+                            ReplaceSpecialCharacters(txtSplit.Text));
                     }
 
-                    pgBar.Value++;
-
+                    requests.Add(new RenameRequest(file.FullName,
+                        Path.Combine(file.DirectoryName, newName + file.Extension)));
                 }
-                txtMessage.Text = "Finished!!";
-            }
-            catch (IOException)
-            {
-                DialogResult? result = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, "Umbenennen nicht möglich, da sich schon eine Datei mit gleichen Namen im Ordner befindet.\nRestore durchführen?");
 
-                if (result == DialogResult.Yes)
-                    restore();
-            }
-            catch (AbortException)
-            {
-                //Abbruchbedingung
+                PreviewAndExecute(requests, false);
             }
             catch (Exception ex)
             {
-                ErrorHelper.HandleException(ex);
+                MessageHandler.MessagesOK(MessageBoxIcon.Error,
+                    "Vorschau konnte nicht erstellt werden – keine Datei wurde geändert.\n" + ex.Message);
             }
             finally
             {
-                pgBar.Value = pgBar.Maximum;
+                pgBar.Value = 0;
             }
         }
         #endregion
@@ -688,7 +606,7 @@ namespace Episode_Names
         #region Position an angegebener Stelle einfügen
         private string InsertPosition(string filename)
         {
-            filename = filename.Insert((int)(nbPosition.Value - 1), txtSplit.Text);
+            filename = filename.Insert((int)(nbPosition.Value - 1), ReplaceSpecialCharacters(txtSplit.Text));
 
             return filename;
         }
@@ -707,22 +625,11 @@ namespace Episode_Names
                 {
                     builder.Remove((position - 1), 1); //Position != Index
                 }
-                catch (ArgumentOutOfRangeException)
+                catch (ArgumentOutOfRangeException ex)
                 {
-                    if (!abort)
-                    {
-                        DialogResult? res = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, $"Die Position {position} konnte nicht in jedem File gefunden werden\nVorgang fortsetzen?");
-
-                        if (res == DialogResult.No)
-                        {
-                            res = MessageHandler.MessagesYesNo(MessageBoxIcon.Question, "Restore ausführen?");
-                            if (res == DialogResult.Yes)
-                                restore();
-                            throw new AbortException();
-                        }
-                        else
-                            abort = true;
-                    }
+                    throw new InvalidOperationException(
+                        "Position " + position + " ist für die Datei " + filename +
+                        " nicht vorhanden. Bitte die Positionen korrigieren.", ex);
                 }
             }
 

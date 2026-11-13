@@ -39,7 +39,10 @@
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="SelectedWebsite" Type="System.Int32" Scope="User">
-      <Value Profile="(Default)">0</Value>
+      <Value Profile="(Default)">4</Value>
+    </Setting>
+    <Setting Name="TmdbCredential" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="UpdateDialogShowed" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>

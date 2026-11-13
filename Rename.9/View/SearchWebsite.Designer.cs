@@ -182,7 +182,9 @@ namespace Episode_Names.Anisearch
             "aniDB",
             "Anisearch",
             "Fernsehserien.de",
-            "TVDB"});
+            "TVDB",
+            "TVmaze",
+            "TMDB (API-Key)"});
             this.cmbWebsite.Location = new System.Drawing.Point(53, 6);
             this.cmbWebsite.Name = "cmbWebsite";
             this.cmbWebsite.Size = new System.Drawing.Size(121, 21);

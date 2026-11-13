@@ -1,0 +1,39 @@
+name: Windows build and metadata checks
+
+on:
+  push:
+    branches:
+      - master
+      - 'modernization/**'
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: NuGet/setup-nuget@v2
+      - uses: microsoft/setup-msbuild@v2
+      - name: Restore legacy packages
+        run: nuget restore Episode-Names.sln
+      - name: Build Episode Names (.NET Framework 4.8)
+        run: msbuild Episode-Names.sln /t:Build /p:Configuration=Release /p:Platform="Any CPU"
+      - name: Build metadata checks
+        run: msbuild tests/EpisodeNames.Metadata.Tests/EpisodeNames.Metadata.Tests.csproj /t:Build /p:Configuration=Release /p:Platform=AnyCPU
+      - name: Run metadata and safe-rename checks (offline fixtures)
+        shell: pwsh
+        run: |
+          & "tests/EpisodeNames.Metadata.Tests/bin/Release/EpisodeNames.Metadata.Tests.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Assemble portable Windows test package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        shell: pwsh
+        run: ./scripts/package-windows-test.ps1
+      - name: Upload portable Windows test package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EpisodeNames-Windows-Test-${{ github.sha }}
+          path: dist/EpisodeNames-Windows-Test/
+          if-no-files-found: error
+          retention-days: 14
