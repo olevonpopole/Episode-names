@@ -28,6 +28,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="RenamePlanChecks.cs" />
+    <Compile Include="..\..\Rename.9\Renaming\RenamePlanner.cs"><Link>RenamePlanner.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\IEpisodeMetadataProvider.cs"><Link>IEpisodeMetadataProvider.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\MetadataModels.cs"><Link>MetadataModels.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\TvMazeProvider.cs"><Link>TvMazeProvider.cs</Link></Compile>
