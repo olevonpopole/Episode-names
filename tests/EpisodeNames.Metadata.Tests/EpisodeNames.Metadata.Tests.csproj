@@ -24,12 +24,15 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.Security" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="..\..\Rename.9\Metadata\IEpisodeMetadataProvider.cs"><Link>IEpisodeMetadataProvider.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\MetadataModels.cs"><Link>MetadataModels.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\TvMazeProvider.cs"><Link>TvMazeProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\TmdbProvider.cs"><Link>TmdbProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\TmdbCredentialStore.cs"><Link>TmdbCredentialStore.cs</Link></Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
