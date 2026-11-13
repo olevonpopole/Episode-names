@@ -21,6 +21,14 @@ Insert Position: fügt bei der angegebenen Position den angegebenen Text ein
 Delete Positions: löscht die Zeichen auf den angegebenen Positionen (die Positionen schreibt man daneben in das Textfeld). Positionen werden mit ";" getrennt und es kann auch von-bis angegeben werden. Also z.B. "1,5,7-10", dann werden die Zeichen auf den Positionen 1,5,7,8,9,10 gelöscht.
 
 
+## Sichere Umbenennungsvorschau (Entwicklungsbranch)
+
+**Vor jeder Umbenennung erscheint jetzt eine Vorschau:** Das gilt für Daten-/Episodentitel, Nummerierung, Position einfügen/löschen, Suchen/Ersetzen und die Wiederherstellung. Für jede Datei zeigt sie den bisherigen Namen, den geplanten neuen Namen und den Prüfstatus. Erst der Klick auf **Änderungen ausführen** startet die Dateioperationen.
+
+Der gemeinsame Planer blockiert **vor der ersten Änderung**: ungültige Windows-Dateinamen (einschließlich reservierter Namen wie CON/LPT1, abschließender Punkte/Leerzeichen und überlanger Pfade), doppelte Quell- und Zielzuordnungen, auch nur durch Groß-/Kleinschreibung unterschiedene Zielnamen, bestehende Dateien/Ordner am Ziel, fehlende Quelldateien und Zielpfade außerhalb des Quellordners. Reine Groß-/Kleinschreibungsänderungen und Dateinamen-Tauschaktionen werden vorerst bewusst abgelehnt, statt bestehende Dateien zu überschreiben. Ein Daten-/Dateianzahl-Unterschied blockiert den datenbasierten Vorgang.
+
+Direkt vor der Ausführung prüft das Programm den Dateizustand **erneut**. Scheitert danach eine Dateioperation, versucht es, die bereits ausgeführten Umbenennungen rückgängig zu machen; eine unvollständige Rücknahme wird ausdrücklich gemeldet. Bei abgebrochener Vorschau bleibt die letzte erfolgreiche Wiederherstellungszuordnung erhalten. Kein Verfahren kann gleichzeitige Fremdzugriffe auf Dateien vollständig ausschließen; wichtige Originaldaten bitte weiterhin sichern.
+
 ## Optionale TMDB-Anbindung (Entwicklungsbranch)
 
 TMDB ergänzt die schlüsselfreie TVmaze-Anbindung um deutsche und englische Episodentitel. **TVmaze bleibt ohne Konto und ohne Schlüssel nutzbar.**
@@ -46,8 +54,8 @@ Die klassische Windows-Forms-Anwendung kann Episoden jetzt über die öffentlich
 
 Für „Alle Staffeln“ ist die erste Spalte als `S01E01`, `S01E02` usw. formatiert; für eine einzelne Staffel enthält sie die dortige Episodennummer. Die zweite Spalte enthält den Episodentitel. Specials können über „Staffel 0“ ausgewählt werden. Nicht eindeutig nummerierte oder namenlose Episoden werden **nicht automatisch zugeordnet**.
 
-**Einschränkungen:** TVmaze liefert hauptsächlich Original-/englische Episodentitel und keine gesicherten deutschen Episodenübersetzungen. Anime mit abweichenden Staffel-, DVD- oder absoluten Episodennummern benötigen eine sorgfältige manuelle Zuordnung. Die optionale TMDB-Anbindung für deutsche Titel folgt in einem separaten Entwicklungsschritt. Die älteren HTML-basierten Anbieter sind weiterhin vorhanden, können aber wegen Website-Änderungen fehlschlagen.
+**Einschränkungen:** TVmaze liefert hauptsächlich Original-/englische Episodentitel und keine gesicherten deutschen Episodenübersetzungen. Anime mit abweichenden Staffel-, DVD- oder absoluten Episodennummern benötigen eine sorgfältige manuelle Zuordnung. Die optionale TMDB-Anbindung unterstützt bereits deutsche Episodentitel mit englischem Fallback. Die älteren HTML-basierten Anbieter sind weiterhin vorhanden, können aber wegen Website-Änderungen fehlschlagen.
 
 **Datenquelle und Lizenz:** Episodenmetadaten von [TVmaze](https://www.tvmaze.com) – öffentliche API unter CC BY-SA (Namensnennung und Weitergabe unter gleichen Bedingungen für entsprechende weiterverteilte Daten). [API-Dokumentation und Bedingungen](https://www.tvmaze.com/api).
 
-Details zur Architektur: [docs/METADATA_MODERNIZATION.md](docs/METADATA_MODERNIZATION.md). Ein Windows-Build und Offline-Providerchecks laufen per GitHub Actions.
+Details zur Architektur: [docs/METADATA_MODERNIZATION.md](docs/METADATA_MODERNIZATION.md). Ein Windows-Build mit Offline-Provider- und Umbenennungschecks läuft per GitHub Actions.
