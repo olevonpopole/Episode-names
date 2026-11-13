@@ -99,6 +99,8 @@
     <Compile Include="Metadata\TvMazeProvider.cs" />
     <Compile Include="Metadata\TmdbProvider.cs" />
     <Compile Include="Metadata\TmdbCredentialStore.cs" />
+    <Compile Include="Renaming\RenamePlanner.cs" />
+    <Compile Include="View\RenamePreviewDialog.cs" />
     <Compile Include="Exceptions\AbortException.cs" />
     <Compile Include="Helper\ErrorHelper.cs" />
     <Compile Include="Helper\FileHelper.cs" />
