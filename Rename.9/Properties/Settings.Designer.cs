@@ -181,6 +181,18 @@ namespace Episode_Names.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TmdbCredential {
+            get {
+                return ((string)(this["TmdbCredential"]));
+            }
+            set {
+                this["TmdbCredential"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool UpdateDialogShowed {
             get {
