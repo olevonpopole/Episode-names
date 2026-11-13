@@ -113,22 +113,27 @@ namespace Episode_Names.Metadata
                 .GroupBy(ep => ep.EpisodeNumber.Value)
                 .ToDictionary(g => g.Key, g => g.First());
 
-            var result = new List<EpisodeMetadata>();
-            foreach (EpisodeDto local in localized.Episodes ?? new EpisodeDto[0])
-            {
-                if (local == null || !local.EpisodeNumber.HasValue || local.EpisodeNumber.Value <= 0)
-                    continue;
+            var localByNumber = (localized.Episodes ?? new EpisodeDto[0])
+                .Where(ep => ep != null && ep.EpisodeNumber.HasValue && ep.EpisodeNumber.Value > 0)
+                .GroupBy(ep => ep.EpisodeNumber.Value)
+                .ToDictionary(g => g.Key, g => g.First());
 
+            var result = new List<EpisodeMetadata>();
+            // An English episode may exist even when it is absent from the localized listing.
+            foreach (int number in localByNumber.Keys.Union(enByNumber.Keys).Where(n => n > 0).OrderBy(n => n))
+            {
+                EpisodeDto local;
                 EpisodeDto eng;
-                enByNumber.TryGetValue(local.EpisodeNumber.Value, out eng);
-                string engTitle = NormalizeTitle(eng == null ? null : eng.Name, local.EpisodeNumber.Value);
-                string localTitle = NormalizeTitle(local.Name, local.EpisodeNumber.Value);
+                localByNumber.TryGetValue(number, out local);
+                enByNumber.TryGetValue(number, out eng);
+                string engTitle = NormalizeTitle(eng == null ? null : eng.Name, number);
+                string localTitle = NormalizeTitle(local == null ? null : local.Name, number);
 
                 string chosen;
                 string actualLanguage;
                 if (language == "en")
                 {
-                    chosen = localTitle;
+                    chosen = engTitle ?? localTitle;
                     actualLanguage = string.IsNullOrEmpty(chosen) ? "und" : "en";
                 }
                 else if (!string.IsNullOrEmpty(localTitle)
@@ -143,9 +148,10 @@ namespace Episode_Names.Metadata
                     actualLanguage = string.IsNullOrEmpty(chosen) ? "und" : "en";
                 }
 
+                EpisodeDto source = local ?? eng;
                 result.Add(new EpisodeMetadata(ProviderKey,
-                    local.Id.ToString(CultureInfo.InvariantCulture),
-                    seasonNumber, local.EpisodeNumber, null, chosen ?? string.Empty,
+                    source.Id.ToString(CultureInfo.InvariantCulture),
+                    seasonNumber, number, null, chosen ?? string.Empty,
                     actualLanguage, seasonNumber == 0));
             }
 
