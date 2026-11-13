@@ -25,3 +25,15 @@ jobs:
         run: |
           & "tests/EpisodeNames.Metadata.Tests/bin/Release/EpisodeNames.Metadata.Tests.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Assemble portable Windows test package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        shell: pwsh
+        run: ./scripts/package-windows-test.ps1
+      - name: Upload portable Windows test package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EpisodeNames-Windows-Test-${{ github.sha }}
+          path: dist/EpisodeNames-Windows-Test/
+          if-no-files-found: error
+          retention-days: 14
