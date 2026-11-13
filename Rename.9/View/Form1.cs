@@ -22,7 +22,6 @@ namespace Episode_Names
         List<string> oldData;
         List<string> newData; //old- und newData wird für "Restore" benötigt; um die alten Filenamen wiederherzustelen muss man auch den neuen wissen
         List<string> data;
-        bool abort;
         #endregion
 
 
@@ -46,7 +45,6 @@ namespace Episode_Names
             txtSearch.Text = Properties.Settings.Default.SR_Search;
             pgBar.Value = cmbOption.SelectedIndex = 0;
             txtMessage.Text = "";
-            abort = false;
             Updater.CheckUpdate(true, pgBar);
         }
         #endregion
@@ -64,7 +62,6 @@ namespace Episode_Names
             {
                 renameWithoutData_Click(false);
             }
-            abort = false;
         }
         #endregion
 
