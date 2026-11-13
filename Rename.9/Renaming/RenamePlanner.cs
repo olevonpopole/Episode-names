@@ -156,6 +156,12 @@ namespace Episode_Names.Renaming
         /// <summary>Recheck disk state immediately before the first move, then best-effort rollback on I/O failure.</summary>
         public IReadOnlyList<RenameRequest> Execute()
         {
+            return Execute(null);
+        }
+
+        // Internal test seam for simulating a failure between successive file moves.
+        internal IReadOnlyList<RenameRequest> Execute(Action<int> beforeMove)
+        {
             RenamePlan fresh = Create(Entries.Select(x => new RenameRequest(x.SourcePath, x.DestinationPath)));
             if (!fresh.CanExecute)
                 throw new IOException("Dateizustand hat sich seit der Vorschau geändert oder es bestehen Konflikte. Bitte neu prüfen.");
@@ -165,6 +171,8 @@ namespace Episode_Names.Renaming
             {
                 foreach (RenameEntry entry in fresh.Entries.Where(x => !x.IsUnchanged))
                 {
+                    if (beforeMove != null)
+                        beforeMove(completed.Count);
                     // Keep the no-overwrite invariant even if another process created a target after validation.
                     if (!File.Exists(entry.SourcePath) ||
                         File.Exists(entry.DestinationPath) || Directory.Exists(entry.DestinationPath))
