@@ -20,7 +20,7 @@ jobs:
         run: msbuild Episode-Names.sln /t:Build /p:Configuration=Release /p:Platform="Any CPU"
       - name: Build metadata checks
         run: msbuild tests/EpisodeNames.Metadata.Tests/EpisodeNames.Metadata.Tests.csproj /t:Build /p:Configuration=Release /p:Platform=AnyCPU
-      - name: Run metadata checks (offline fixtures)
+      - name: Run metadata and safe-rename checks (offline fixtures)
         shell: pwsh
         run: |
           & "tests/EpisodeNames.Metadata.Tests/bin/Release/EpisodeNames.Metadata.Tests.exe"
