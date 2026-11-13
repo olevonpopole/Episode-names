@@ -22,7 +22,12 @@ namespace Episode_Names.Helper
 
         internal static void CheckUpdate(bool Prompt, ProgressBar progressBar)
         {
-            
+            // The portable GitHub test package sets this flag in its own .exe.config.
+            // Never let an old release updater replace an explicitly selected test build.
+            if (string.Equals(System.Configuration.ConfigurationManager.AppSettings["PortableTestBuild"],
+                "true", StringComparison.OrdinalIgnoreCase))
+                return;
+
             if (!Prompt || !Properties.Settings.Default.UpdateDialogShowed)
             {
                 new Thread(() =>
