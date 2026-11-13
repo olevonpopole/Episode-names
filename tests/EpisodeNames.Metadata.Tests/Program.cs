@@ -17,6 +17,7 @@ namespace Episode_Names.Metadata.Tests
             try
             {
                 RunAsync().GetAwaiter().GetResult();
+                RenamePlanChecks.Run();
                 Console.WriteLine("TVmaze and TMDB provider checks passed.");
                 return 0;
             }
