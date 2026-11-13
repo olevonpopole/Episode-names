@@ -86,7 +86,8 @@ namespace Episode_Names.Renaming
                     continue;
                 }
 
-                string filename = Path.GetFileName(destination);
+                // Keep the raw name: on Windows GetFullPath can normalize away trailing dots/spaces.
+                string filename = Path.GetFileName(entry.DestinationPath);
                 if (!WindowsPaths.Equals(Path.GetDirectoryName(source), Path.GetDirectoryName(destination)))
                     AddProblem(entry, "Ziel liegt außerhalb des Quellordners.");
                 if (string.IsNullOrWhiteSpace(filename) || filename.Length > 255)
