@@ -75,15 +75,14 @@ namespace Episode_Names.View
                 Dock = DockStyle.Top, Height = 39, Padding = new Padding(7, 4, 7, 4) };
             searchBar.Controls.Add(new Label { Text = "Serientitel:", Width = 82,
                 TextAlign = ContentAlignment.MiddleLeft, Height = 26 });
-            queryBox = new TextBox { Width = 372, Text = query };
+            queryBox = new TextBox { Width = 340, Text = query };
             searchBar.Controls.Add(new Label { Text = "Sprache:", Width = 57,
                 TextAlign = ContentAlignment.MiddleLeft, Height = 26 });
             languageChoice = new ComboBox {
-                Width = 115, DropDownStyle = ComboBoxStyle.DropDownList
+                Width = 148, DropDownStyle = ComboBoxStyle.DropDownList
             };
-            languageChoice.Items.Add(new KeyValuePair<string, string>("de", "Deutsch"));
-            languageChoice.Items.Add(new KeyValuePair<string, string>("en", "English"));
-            languageChoice.Items.Add(new KeyValuePair<string, string>("ja", "日本語"));
+            foreach (var choice in MetadataSelection.SupportedLanguages())
+                languageChoice.Items.Add(choice);
             languageChoice.DisplayMember = "Value";
             languageChoice.ValueMember = "Key";
             string preferred = MetadataSelection.CanonicalLanguage(
@@ -105,7 +104,7 @@ namespace Episode_Names.View
                 matches.Items.Clear();
                 candidates.Clear();
                 status.Text = "Zielsprache geändert. Bitte „Erneut suchen“ wählen. " +
-                    "TVmaze liefert Originaltitel; TMDB unterstützt Deutsch und Englisch.";
+                    "TVmaze/Jikan haben keine garantierten Übersetzungen.";
             };
             searchAgain = new Button { Text = "Erneut suchen", Width = 120 };
             searchAgain.Click += async (s, e) => await SearchAsync();
@@ -141,7 +140,9 @@ namespace Episode_Names.View
             preview.Columns.Add(new DataGridViewTextBoxColumn {
                 HeaderText = "Episodentitel (editierbar)", Name = "title", FillWeight = 43 });
             preview.Columns.Add(new DataGridViewTextBoxColumn {
-                HeaderText = "Sprache", Name = "language", ReadOnly = true, FillWeight = 12 });
+                HeaderText = "Quelle", Name = "provider", ReadOnly = true, FillWeight = 17 });
+            preview.Columns.Add(new DataGridViewTextBoxColumn {
+                HeaderText = "Sprache", Name = "language", ReadOnly = true, FillWeight = 18 });
             preview.Columns.Add(new DataGridViewTextBoxColumn {
                 HeaderText = "Status", Name = "status", ReadOnly = true, FillWeight = 29 });
             preview.CellEndEdit += (s, e) => UpdateAcceptStatus();
@@ -200,10 +201,11 @@ namespace Episode_Names.View
                 tmdbError = "Gespeicherter TMDB-Schlüssel nicht lesbar. ";
             }
             providers.Add(new TvMazeProvider());
+            providers.Add(new JikanProvider(language));
+            IEpisodeMetadataProvider aniZip = new AniZipProvider(language);
 
             status.Text = "Suche: " + searchTerm + " | Zielsprache: " + language.ToUpperInvariant() +
-                " | TVmaze: Originaltitel; TMDB: DE/EN mit Key" +
-                (language == "ja" ? " (bei JA keine TMDB-Japanisch-Unterstützung)" : "") + ".";
+                " | TMDB lokalisiert mit Key; TVmaze/Jikan original, AniZip mehrsprachig.";
             string errors = tmdbError;
             int rawResults = 0;
             foreach (IEpisodeMetadataProvider provider in providers)
@@ -223,6 +225,20 @@ namespace Episode_Names.View
                         // English/original name for a German folder name.
                         // These are suggestions, never automatically selected.
                         candidates.Add(new Candidate { Provider = provider, Series = match, Rank = score });
+                    }
+                    // AniZip cannot safely search arbitrary names on its own:
+                    // the Jikan MAL IDs are used as *typed identity links*.
+                    if (provider.Id == JikanProvider.ProviderKey)
+                    {
+                        foreach (SeriesMatch link in AniZipProvider.FromMalSearch(results))
+                        {
+                            int score = Normalize(link.Name) == Normalize(searchTerm) ? 100 :
+                                Normalize(link.Name).Contains(Normalize(searchTerm)) ||
+                                Normalize(searchTerm).Contains(Normalize(link.Name)) ? 40 : 0;
+                            candidates.Add(new Candidate {
+                                Provider = aniZip, Series = link, Rank = score
+                            });
+                        }
                     }
                 }
                 catch (OperationCanceledException) { return; }
@@ -271,7 +287,12 @@ namespace Episode_Names.View
 
             candidates.Sort((a, b) => b.Rank != a.Rank ?
                 b.Rank.CompareTo(a.Rank) :
-                string.Compare(a.ToString(), b.ToString(), StringComparison.OrdinalIgnoreCase));
+                MetadataSourcePriority.Rank(b.Provider.Id, language) !=
+                    MetadataSourcePriority.Rank(a.Provider.Id, language)
+                    ? MetadataSourcePriority.Rank(b.Provider.Id, language)
+                        .CompareTo(MetadataSourcePriority.Rank(a.Provider.Id, language))
+                    : string.Compare(a.ToString(), b.ToString(),
+                        StringComparison.OrdinalIgnoreCase));
 
             matches.Items.Clear();
             matches.Items.AddRange(candidates.Cast<object>().ToArray());
@@ -287,7 +308,9 @@ namespace Episode_Names.View
 
             // Auto-fetch only when exactly one match is a perfect title match.
             // Multiple provider hits or aliases need explicit user selection.
-            if (candidates.Count == 1 && candidates[0].Rank == 100)
+            if (candidates.Count == 1 &&
+                MetadataSourcePriority.CanAutoFetch(candidates.Count,
+                    candidates.Count(x => x.Rank == 100), candidates[0].Provider.Id))
             {
                 matches.SelectedIndex = 0;
                 await LoadSelectedAsync();
@@ -337,7 +360,8 @@ namespace Episode_Names.View
                     string languageLabel = MetadataSelection.DescribeResultLanguage(
                         requested, suggestion.Language);
                     int index = preview.Rows.Add(suggestion.File.FileName,
-                        identity, suggestion.Title, languageLabel, suggestion.Status);
+                        identity, suggestion.Title, selected.Provider.DisplayName,
+                        languageLabel, suggestion.Status);
                     if (!suggestion.IsMatched)
                     {
                         preview.Rows[index].Cells[2].ReadOnly = true;
