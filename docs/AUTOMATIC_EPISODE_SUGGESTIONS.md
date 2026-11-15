@@ -11,6 +11,12 @@
 7. Metadaten werden **ausschließlich über (Staffel, Folge)** zugeordnet. Doppelte lokale Nummern, Specials, fehlende Anbieter-Folgen und unnummerierte Dateien bleiben sichtbar blockiert.
 8. Bei vollständiger eindeutiger Zuordnung erscheint pro Datei ein editierbarer Titel. Mit **Datenvorschläge übernehmen** wird lediglich der bestehende Dateneditor geöffnet. Erst dessen Bestätigung setzt die Daten; erst ein späterer Klick auf **Umbenennen** öffnet die verpflichtende sichere Umbenennungsvorschau.
 
+## Treffer ohne exakte Titelübereinstimmung
+
+TVmaze kennt häufig nur Original- oder englische Titel; eine erfolgreiche API-Antwort mit Serienkandidaten kann deshalb bei einem deutschen Ordnernamen von dessen Text abweichen. Die UI zeigt jetzt **alle vom Provider gelieferten Serienkandidaten**, sortiert nach Titelähnlichkeit, statt abweichende Treffer vollständig wegzufiltern. Nur exakt eindeutige Kandidaten können weiterhin automatisch zum Episodenabruf führen. Andere Vorschläge müssen bewusst gewählt werden.
+
+Außerdem kann die Suchanfrage im Vorschlagsdialog bearbeitet und über **Erneut suchen** erneut bei den Anbietern gestellt werden. Meldungen unterscheiden zwischen echten **0 API-Treffern** und verfügbaren, aber unsicheren Kandidaten. Ein englicher/alternativer Anime-Titel kann notwendig sein, wenn TVmaze den deutschen Titel nicht kennt. Es werden niemals allein aufgrund niedriger Namensähnlichkeit Dateien automatisch zugeordnet.
+
 ## Sprache, Anbieter, Grenzen
 
 - TMDB verwendet die gespeicherte Metadatensprache `de` oder `en`, bei `ja` wird derzeit `de` verwendet; vorhandenes DE/EN-Fallback aus dem TMDB-Provider gilt. Sprache pro Ergebnis wird angezeigt.
