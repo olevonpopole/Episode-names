@@ -43,6 +43,9 @@ namespace Episode_Names.View
         private readonly Button load;
         private readonly Button accept;
         private readonly Button cancel;
+        private readonly Button stopSearch;
+        private readonly CheckedListBox favoriteSources;
+        private CancellationTokenSource activeSearch;
         private readonly Label notice;
         private bool busy;
         private IReadOnlyList<EpisodeSuggestion> current;
@@ -112,6 +115,25 @@ namespace Episode_Names.View
             searchBar.Controls.Add(languageChoice);
             searchBar.Controls.Add(searchAgain);
 
+            favoriteSources = new CheckedListBox {
+                Dock = DockStyle.Top, Height = 57, MultiColumn = true,
+                ColumnWidth = 215, CheckOnClick = true,
+                BorderStyle = BorderStyle.FixedSingle,
+                DisplayMember = "Value"
+            };
+            var favorites = MetadataSourceFavorites.Load(
+                Properties.Settings.Default.AutoSearchFavorites);
+            foreach (var source in new[] {
+                new KeyValuePair<string, string>("tvmaze", "TVmaze"),
+                new KeyValuePair<string, string>("jikan", "Jikan (MyAnimeList)"),
+                new KeyValuePair<string, string>("anizip", "AniZip (Anime)"),
+                new KeyValuePair<string, string>("tmdb", "TMDB (mit Key)")
+            })
+                favoriteSources.Items.Add(source, favorites.Contains(source.Key));
+            favoriteSources.ItemCheck += (s, e) => {
+                if (!busy && IsHandleCreated)
+                    BeginInvoke(new Action(InvalidateSuggestions));
+            };
             matches = new ListBox { Dock = DockStyle.Top, Height = 120 };
             matches.SelectedIndexChanged += (s, e) => load.Enabled = !busy && matches.SelectedItem != null;
 
@@ -119,11 +141,17 @@ namespace Episode_Names.View
             load.Click += async (s, e) => await LoadSelectedAsync();
             accept = new Button { Text = "Datenvorschläge übernehmen", Width = 220, Enabled = false };
             accept.Click += (s, e) => AcceptRows();
-            cancel = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, Width = 100 };
+            cancel = new Button { Text = "Schließen", DialogResult = DialogResult.Cancel, Width = 100 };
+            stopSearch = new Button { Text = "Suche stoppen", Width = 125, Enabled = false };
+            stopSearch.Click += (s, e) => {
+                if (activeSearch != null && !activeSearch.IsCancellationRequested)
+                    activeSearch.Cancel();
+            };
             var actions = new FlowLayoutPanel {
                 Dock = DockStyle.Bottom, Height = 47,
                 FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(10) };
             actions.Controls.Add(cancel);
+            actions.Controls.Add(stopSearch);
             actions.Controls.Add(accept);
             actions.Controls.Add(load);
 
@@ -150,6 +178,7 @@ namespace Episode_Names.View
             var box = new Panel { Dock = DockStyle.Fill };
             box.Controls.Add(preview);
             box.Controls.Add(matches);
+            box.Controls.Add(favoriteSources);
             box.Controls.Add(searchBar);
             box.Controls.Add(notice);
             box.Controls.Add(status);
@@ -168,179 +197,216 @@ namespace Episode_Names.View
                 @"[^\p{L}\p{Nd}]+", "");
         }
 
-        private async Task SearchAsync()
+        private void InvalidateSuggestions()
         {
-            string searchTerm = queryBox.Text.Trim();
-            if (files.Count == 0 || string.IsNullOrWhiteSpace(searchTerm))
-            {
-                status.Text = "Kein geeigneter Ordner bzw. keine Dateien gefunden.";
-                return;
-            }
-            SetBusy(true);
-            candidates.Clear();
             current = null;
+            accept.Enabled = false;
             preview.Rows.Clear();
             matches.Items.Clear();
-            accept.Enabled = false;
+            candidates.Clear();
+            status.Text = "Quellenauswahl geändert – bitte erneut suchen.";
+        }
+
+        private List<string> SelectedSources()
+        {
+            return favoriteSources.CheckedItems.Cast<KeyValuePair<string, string>>()
+                .Select(pair => pair.Key).ToList();
+        }
+
+        private async Task SearchAsync()
+        {
+            if (busy || IsDisposed) return;
+            string searchTerm = queryBox.Text.Trim();
+            List<string> wanted = SelectedSources();
+            if (files.Count == 0 || string.IsNullOrWhiteSpace(searchTerm))
+            {
+                status.Text = "Bitte einen Serienordner mit Dateien und Suchbegriff auswählen.";
+                return;
+            }
+            if (wanted.Count == 0)
+            {
+                status.Text = "Bitte mindestens eine Datenquelle als Favoriten auswählen.";
+                return;
+            }
             string language = MetadataSelection.CanonicalLanguage(
                 ((KeyValuePair<string, string>)languageChoice.SelectedItem).Key);
-            // Consistent with the manual provider dialog: remember the language
-            // when a search starts, not on an uncommitted selection change.
             Properties.Settings.Default.PreferredMetadataLanguage = language;
+            Properties.Settings.Default.AutoSearchFavorites =
+                MetadataSourceFavorites.Save(wanted);
             Properties.Settings.Default.Save();
+
+            InvalidateSuggestions();
+            SetBusy(true);
+            string errors = "";
+            int resultCount = 0;
+            string key = "";
+            if (wanted.Contains("tmdb"))
+            {
+                try
+                {
+                    key = TmdbCredentialStore.Unprotect(
+                        Properties.Settings.Default.TmdbCredential);
+                    if (string.IsNullOrWhiteSpace(key))
+                        errors += "TMDB: API-Key fehlt. ";
+                }
+                catch (Exception) { errors += "TMDB-Key nicht lesbar. "; }
+            }
             var providers = new List<IEpisodeMetadataProvider>();
-            string tmdbError = "";
-            try
-            {
-                string key = TmdbCredentialStore.Unprotect(Properties.Settings.Default.TmdbCredential);
-                if (!string.IsNullOrWhiteSpace(key))
-                    providers.Add(new TmdbProvider(key, language));
-            }
-            catch (Exception)
-            {
-                tmdbError = "Gespeicherter TMDB-Schlüssel nicht lesbar. ";
-            }
-            providers.Add(new TvMazeProvider());
-            providers.Add(new JikanProvider(language));
+            if (wanted.Contains("tvmaze")) providers.Add(new TvMazeProvider());
+            if (wanted.Contains("tmdb") && !string.IsNullOrWhiteSpace(key))
+                providers.Add(new TmdbProvider(key, language));
+            if (MetadataSourceFavorites.UsesMalLookup(wanted))
+                providers.Add(new JikanProvider(language));
             IEpisodeMetadataProvider aniZip = new AniZipProvider(language);
 
-            status.Text = "Suche: " + searchTerm + " | Zielsprache: " + language.ToUpperInvariant() +
-                " | TMDB lokalisiert mit Key; TVmaze/Jikan original, AniZip mehrsprachig.";
-            string errors = tmdbError;
-            int rawResults = 0;
-            bool jikanWorking = true;
-            foreach (IEpisodeMetadataProvider provider in providers)
+            using (var limit = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellation.Token))
             {
+                limit.CancelAfter(TimeSpan.FromSeconds(18));
+                activeSearch = limit;
                 try
                 {
-                    IReadOnlyList<SeriesMatch> results = await provider.SearchSeriesAsync(
-                        searchTerm, cancellation.Token);
-                    if (IsDisposed || cancellation.IsCancellationRequested) return;
-                    rawResults += results.Count;
-                    foreach (SeriesMatch match in results.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
+                    foreach (var provider in providers)
                     {
-                        int score = Normalize(match.Name) == Normalize(searchTerm) ? 100 :
-                            Normalize(match.Name).Contains(Normalize(searchTerm)) ||
-                            Normalize(searchTerm).Contains(Normalize(match.Name)) ? 40 : 0;
-                        // Show even low-confidence results. TVmaze may use the
-                        // English/original name for a German folder name.
-                        // These are suggestions, never automatically selected.
-                        candidates.Add(new Candidate { Provider = provider, Series = match, Rank = score });
-                    }
-                    // AniZip cannot safely search arbitrary names on its own:
-                    // the Jikan MAL IDs are used as *typed identity links*.
-                    if (provider.Id == JikanProvider.ProviderKey)
-                    {
-                        foreach (SeriesMatch link in AniZipProvider.FromMalSearch(results))
+                        if (limit.IsCancellationRequested) break;
+                        status.Text = "Suche " + provider.DisplayName +
+                            " – maximal 18 Sekunden insgesamt …";
+                        try
                         {
-                            int score = Normalize(link.Name) == Normalize(searchTerm) ? 100 :
-                                Normalize(link.Name).Contains(Normalize(searchTerm)) ||
-                                Normalize(searchTerm).Contains(Normalize(link.Name)) ? 40 : 0;
-                            candidates.Add(new Candidate {
-                                Provider = aniZip, Series = link, Rank = score
-                            });
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { return; }
-                catch (Exception ex)
-                {
-                    // TMDB exception internals are redacted: never show an API key.
-                    if (provider.Id == JikanProvider.ProviderKey) jikanWorking = false;
-                    errors += provider.DisplayName + ": " +
-                        (provider.Id == JikanProvider.ProviderKey &&
-                         ex is MetadataProviderException ? ex.Message :
-                         ex.GetType().Name) + ". ";
-                }
-            }
-            // When a translated/localized folder title is not indexed by
-            // TVmaze, ask AniList for documented alternate anime names, then
-            // retry TVmaze with up to three aliases. Do not guess translations.
-            // Aliased results are always manual choices, never auto-approved.
-            if (candidates.Count == 0 || candidates.All(x => x.Rank == 0))
-            {
-                try
-                {
-                    IReadOnlyList<string> aliases = await new AnimeTitleAliases()
-                        .FindAsync(searchTerm, cancellation.Token);
-                    var aliasSources = providers.Where(p => p.Id == "tvmaze" ||
-                        (jikanWorking && p.Id == JikanProvider.ProviderKey)).ToList();
-                    foreach (string alias in aliases.Take(3))
-                    {
-                        cancellation.Token.ThrowIfCancellationRequested();
-                        foreach (IEpisodeMetadataProvider source in aliasSources)
-                        {
-                            try
+                            using (var sourceLimit =
+                                CancellationTokenSource.CreateLinkedTokenSource(limit.Token))
                             {
-                                IReadOnlyList<SeriesMatch> suggestions =
-                                    await source.SearchSeriesAsync(alias, cancellation.Token);
+                                sourceLimit.CancelAfter(TimeSpan.FromSeconds(6));
+                                IReadOnlyList<SeriesMatch> found =
+                                    await provider.SearchSeriesAsync(searchTerm, sourceLimit.Token);
                                 if (IsDisposed || cancellation.IsCancellationRequested) return;
-                                rawResults += suggestions.Count;
-                                foreach (SeriesMatch match in suggestions.Where(x =>
-                                    !string.IsNullOrWhiteSpace(x.Name)))
-                                {
-                                    if (!candidates.Any(x => x.Provider.Id == source.Id &&
-                                        x.Series.Id == match.Id))
-                                        candidates.Add(new Candidate {
-                                            Provider = source, Series = match, Rank = 15
-                                        });
-                                }
-                                if (source.Id == JikanProvider.ProviderKey)
-                                    foreach (SeriesMatch match in AniZipProvider.FromMalSearch(suggestions))
-                                    {
-                                        if (!candidates.Any(x => x.Provider.Id == aniZip.Id &&
-                                            x.Series.Id == match.Id))
-                                            candidates.Add(new Candidate {
-                                                Provider = aniZip, Series = match, Rank = 15
-                                            });
-                                    }
+                                resultCount += found.Count;
+                                AddCandidates(provider, found, searchTerm, 0);
+                                if (provider.Id == JikanProvider.ProviderKey &&
+                                    wanted.Contains("anizip"))
+                                    AddCandidates(aniZip,
+                                        AniZipProvider.FromMalSearch(found), searchTerm, 0);
                             }
-                            catch (OperationCanceledException) { return; }
-                            catch (Exception)
-                            {
-                                errors += source.DisplayName + ": Alias-Suche fehlgeschlagen. ";
-                            }
+                            RefreshCandidates(language);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            errors += provider.DisplayName + ": Zeitlimit. ";
+                        }
+                        catch (Exception)
+                        {
+                            errors += provider.DisplayName + ": Abfrage fehlgeschlagen. ";
                         }
                     }
+
+                    // Expensive alias lookups are optional, and only useful
+                    // if the selected sources did not return a matching title.
+                    if (!limit.IsCancellationRequested && candidates.All(x => x.Rank == 0))
+                    {
+                        status.Text = "Alternative Anime-Titel prüfen …";
+                        try
+                        {
+                            IReadOnlyList<string> aliases;
+                            using (var aliasLimit =
+                                CancellationTokenSource.CreateLinkedTokenSource(limit.Token))
+                            {
+                                aliasLimit.CancelAfter(TimeSpan.FromSeconds(3));
+                                aliases = await new AnimeTitleAliases()
+                                    .FindAsync(searchTerm, aliasLimit.Token);
+                            }
+                            foreach (string alias in aliases.Take(1))
+                            {
+                                foreach (IEpisodeMetadataProvider provider in providers.Where(
+                                    p => p.Id == "tvmaze" || p.Id == "jikan"))
+                                {
+                                    if (limit.IsCancellationRequested) break;
+                                    try
+                                    {
+                                        using (var retryLimit =
+                                            CancellationTokenSource.CreateLinkedTokenSource(limit.Token))
+                                        {
+                                            retryLimit.CancelAfter(TimeSpan.FromSeconds(3));
+                                            var found = await provider.SearchSeriesAsync(
+                                                alias, retryLimit.Token);
+                                            if (IsDisposed || cancellation.IsCancellationRequested)
+                                                return;
+                                            resultCount += found.Count;
+                                            AddCandidates(provider, found, searchTerm, 15);
+                                            if (provider.Id == "jikan" &&
+                                                wanted.Contains("anizip"))
+                                                AddCandidates(aniZip,
+                                                    AniZipProvider.FromMalSearch(found),
+                                                    searchTerm, 15);
+                                        }
+                                        RefreshCandidates(language);
+                                    }
+                                    catch (OperationCanceledException)
+                                    {
+                                        errors += provider.DisplayName + ": Alias-Zeitlimit. ";
+                                    }
+                                    catch (Exception)
+                                    {
+                                        errors += provider.DisplayName + ": Aliasfehler. ";
+                                    }
+                                }
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            errors += "Alias-Zeitlimit. ";
+                        }
+                        catch (Exception)
+                        {
+                            errors += "Anime-Aliasindex nicht erreichbar. ";
+                        }
+                    }
+                    RefreshCandidates(language);
+                    string ending = limit.IsCancellationRequested
+                        ? "Suche beendet (Zeitlimit oder manuell gestoppt). " : "";
+                    status.Text = ending + "Gefundene Serien: " + candidates.Count +
+                        ". Bitte Quelle und richtige Serie auswählen. " + errors;
+                    if (candidates.Count == 0)
+                        status.Text += "Alternativen: anderer/englischer Serientitel.";
                 }
-                catch (OperationCanceledException) { return; }
-                catch (Exception)
+                finally
                 {
-                    // The optional alias index is a hint, not a requirement.
-                    errors += "Alternative Anime-Titel konnten nicht geladen werden. ";
+                    activeSearch = null;
+                    if (!IsDisposed) SetBusy(false);
                 }
             }
+        }
 
+        private void AddCandidates(IEpisodeMetadataProvider provider,
+            IReadOnlyList<SeriesMatch> found, string term, int aliasRank)
+        {
+            string normalized = Normalize(term);
+            foreach (var match in found.Where(x =>
+                x != null && !string.IsNullOrWhiteSpace(x.Name)))
+            {
+                if (candidates.Any(x => x.Provider.Id == provider.Id &&
+                    x.Series.Id == match.Id))
+                    continue;
+                string name = Normalize(match.Name);
+                int score = aliasRank > 0 ? aliasRank :
+                    name == normalized ? 100 :
+                    (name.Contains(normalized) || normalized.Contains(name)) ? 40 : 0;
+                candidates.Add(new Candidate { Provider = provider,
+                    Series = match, Rank = score });
+            }
+        }
+
+        private void RefreshCandidates(string language)
+        {
             candidates.Sort((a, b) => b.Rank != a.Rank ?
                 b.Rank.CompareTo(a.Rank) :
                 MetadataSourcePriority.Rank(b.Provider.Id, language) !=
-                    MetadataSourcePriority.Rank(a.Provider.Id, language)
-                    ? MetadataSourcePriority.Rank(b.Provider.Id, language)
-                        .CompareTo(MetadataSourcePriority.Rank(a.Provider.Id, language))
-                    : string.Compare(a.ToString(), b.ToString(),
-                        StringComparison.OrdinalIgnoreCase));
-
+                MetadataSourcePriority.Rank(a.Provider.Id, language)
+                ? MetadataSourcePriority.Rank(b.Provider.Id, language)
+                    .CompareTo(MetadataSourcePriority.Rank(a.Provider.Id, language))
+                : string.Compare(a.ToString(), b.ToString(),
+                    StringComparison.OrdinalIgnoreCase));
             matches.Items.Clear();
             matches.Items.AddRange(candidates.Cast<object>().ToArray());
-            SetBusy(false);
-            if (candidates.Count == 0)
-                status.Text = rawResults == 0
-                    ? "Keine Treffer von den Datenquellen für „" + searchTerm +
-                      "“. Anderen/englischen Titel eingeben und erneut suchen. " + errors
-                    : "Keine verwendbaren Treffer; anderen Titel suchen. " + errors;
-            else
-                status.Text = "Gefundene Serien: " + candidates.Count +
-                    " (inkl. unsicherer Treffer). Bitte selbst prüfen und auswählen. " + errors;
-
-            // Auto-fetch only when exactly one match is a perfect title match.
-            // Multiple provider hits or aliases need explicit user selection.
-            if (candidates.Count == 1 &&
-                MetadataSourcePriority.CanAutoFetch(candidates.Count,
-                    candidates.Count(x => x.Rank == 100), candidates[0].Provider.Id))
-            {
-                matches.SelectedIndex = 0;
-                await LoadSelectedAsync();
-            }
         }
 
         private async Task LoadSelectedAsync()
@@ -421,6 +487,8 @@ namespace Episode_Names.View
             busy = value;
             load.Enabled = !busy && matches.SelectedItem != null;
             searchAgain.Enabled = !busy;
+            stopSearch.Enabled = busy;
+            favoriteSources.Enabled = !busy;
             queryBox.Enabled = !busy;
             languageChoice.Enabled = !busy;
             accept.Enabled = !busy && current != null && current.Count > 0 &&
