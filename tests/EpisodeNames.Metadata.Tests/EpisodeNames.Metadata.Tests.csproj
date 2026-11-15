@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{5E1D70ED-390D-49E8-A278-E8A5728E16D2}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Episode_Names.Metadata.Tests</RootNamespace>
+    <AssemblyName>EpisodeNames.Metadata.Tests</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="RenamePlanChecks.cs" />
+    <Compile Include="MetadataRowsChecks.cs" />
+    <Compile Include="MetadataSelectionChecks.cs" />
+    <Compile Include="ReleaseUpdaterChecks.cs" />
+    <Compile Include="..\..\Rename.9\Helper\ReleasePackageValidator.cs"><Link>ReleasePackageValidator.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Helper\GitHubReleaseClient.cs"><Link>GitHubReleaseClient.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Helper\GitHubUpdateCredentialStore.cs"><Link>GitHubUpdateCredentialStore.cs</Link></Compile>
+    <Compile Include="AnisearchUrlChecks.cs" />
+    <Compile Include="FolderSeriesNameChecks.cs" />
+    <Compile Include="EpisodeFileMatcherChecks.cs" />
+    <Compile Include="SeasonNumberChecks.cs" />
+    <Compile Include="AnimeEpisodeSourcesChecks.cs" />
+    <Compile Include="..\..\Rename.9\Metadata\JikanProvider.cs"><Link>JikanProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\AniZipProvider.cs"><Link>AniZipProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\MetadataSourcePriority.cs"><Link>MetadataSourcePriority.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\SeasonNumberResolver.cs"><Link>SeasonNumberResolver.cs</Link></Compile>
+    <Compile Include="FilenameCharactersChecks.cs" />
+    <Compile Include="AnimeTitleAliasesChecks.cs" />
+    <Compile Include="..\..\Rename.9\Metadata\AnimeTitleAliases.cs"><Link>AnimeTitleAliases.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Helper\FilenameCharacters.cs"><Link>FilenameCharacters.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\EpisodeFileMatcher.cs"><Link>EpisodeFileMatcher.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\FolderSeriesName.cs"><Link>FolderSeriesName.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\AnisearchUrl.cs"><Link>AnisearchUrl.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\MetadataSelection.cs"><Link>MetadataSelection.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\MetadataSourceFavorites.cs"><Link>MetadataSourceFavorites.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Renaming\RenameCountPolicy.cs"><Link>RenameCountPolicy.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Renaming\MetadataRows.cs"><Link>MetadataRows.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Renaming\RenamePlanner.cs"><Link>RenamePlanner.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\IEpisodeMetadataProvider.cs"><Link>IEpisodeMetadataProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\MetadataModels.cs"><Link>MetadataModels.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\TvMazeProvider.cs"><Link>TvMazeProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\TmdbProvider.cs"><Link>TmdbProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\TmdbCredentialStore.cs"><Link>TmdbCredentialStore.cs</Link></Compile>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

@@ -1,6 +1,8 @@
 ﻿using Episode_Names.Anisearch;
 using Episode_Names.Exceptions;
 using Episode_Names.Helper;
+using Episode_Names.Metadata;
+using Episode_Names.Renaming;
 using Episode_Names.View;
 using System;
 using System.Collections.Generic;
@@ -21,7 +23,6 @@ namespace Episode_Names
         List<string> oldData;
         List<string> newData; //old- und newData wird für "Restore" benötigt; um die alten Filenamen wiederherzustelen muss man auch den neuen wissen
         List<string> data;
-        bool abort;
         #endregion
 
 
@@ -29,6 +30,17 @@ namespace Episode_Names
         {
             InitializeComponent();
             setData();
+            var suggestionMenu = new ToolStripMenuItem("Automatische Episoden-Datenvorschläge");
+            suggestionMenu.Click += automaticEpisodeSuggestions_Click;
+            insertDataToolStripMenuItem.DropDownItems.Insert(0, suggestionMenu);
+            var releaseSettings = new ToolStripMenuItem("GitHub-Releases-Einstellungen");
+            releaseSettings.Click += (s, e) => {
+                using (var dialog = new GitHubReleaseSettingsDialog())
+                    dialog.ShowDialog(this);
+            };
+            menuStrip1.Items.Insert(menuStrip1.Items.IndexOf(updateToolStripMenuItem) + 1,
+                releaseSettings);
+            Shown += (s, e) => Updater.CheckUpdate(true, this);
             if(path != null)
             {
                 txtPath.Text = path;
@@ -45,8 +57,7 @@ namespace Episode_Names
             txtSearch.Text = Properties.Settings.Default.SR_Search;
             pgBar.Value = cmbOption.SelectedIndex = 0;
             txtMessage.Text = "";
-            abort = false;
-            Updater.CheckUpdate(true, pgBar);
+            // Release check starts asynchronously only after the form is visible.
         }
         #endregion
 
@@ -63,7 +74,6 @@ namespace Episode_Names
             {
                 renameWithoutData_Click(false);
             }
-            abort = false;
         }
         #endregion
 
@@ -73,116 +83,140 @@ namespace Episode_Names
         {
             txtMessage.Text = "";
             pgBar.Value = 0;
-            oldData = new List<string>();
-            newData = new List<string>();
+            // Preserve the last successful undo mapping if the user cancels a preview.
         }
         #endregion
 
 
-        #region Button "Rename"-Klick. Überprüfen welche Kategorie (OnlyNumber, Anzahl der Datensätze stimmen mit Dateien im Ordner überein)
+        #region Metadata-basierte Umbenennung und sichere Vorschau
         private void btnRename_Click()
         {
-            if (data != null || Properties.Settings.Default.OnlyNumber)
+            if (Properties.Settings.Default.OnlyNumber)
             {
-                try
-                {
-                    #region Falls nur %n im Format String ist, wird alles nach diesem Schema umbenannt
-                    if (Properties.Settings.Default.OnlyNumber)
-                    {
-                        renameWithoutData_Click(true);
-                        txtMessage.Text = "Finished!!";
-                        return;
-                    }
-                    #endregion
-
-                    List<FileInfo> infos = new List<FileInfo>(new DirectoryInfo(txtPath.Text).GetFiles().Select(f => f).Where(f => (f.Attributes & FileAttributes.Hidden) == 0));
-                    infos.Sort(new StringComparator());
-                    int countFileLines = data?.Count ?? 0;
-                    pgBar.Maximum = infos.Count;
-                    DialogResult? result = null;
-
-                    
-
-                    #region Überprüfen ob Datensätze mit Dateianzahl übereinstimmt
-                    if (infos.Count > countFileLines)
-                        result = MessageHandler.MessagesYesNo(MessageBoxIcon.Exclamation, "Im Ordner befinden sich mehr Dateien als Zeilen im File-Dokument.\nVorgang trotzdem fortsetzen?");
-
-                    else if (infos.Count < countFileLines)
-                        result = MessageHandler.MessagesYesNo(MessageBoxIcon.Exclamation, "Im Ordner befinden sich weniger Dateien als Zeilen im File-Dokument.\nVorgang trotzdem fortsetzen?");
-                    #endregion
-
-                    if (result == DialogResult.Yes || result == null)
-                    {
-                        RenameFiles(infos);
-                        txtMessage.Text = "Finished!!";
-                    }
-
-                }
-
-
-                catch (IOException)
-                {
-                    DialogResult? result = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, "Umbenennen nicht möglich, da sich schon eine Datei mit gleichen Namen im Ordner befindet.\nRestore durchführen?");
-                    if (result == DialogResult.Yes)
-                    {
-                        restore();
-                    }
-                }
-
-        
-
-                finally
-                {
-                    pgBar.Value = pgBar.Maximum;
-                }
-
-               
+                renameWithoutData_Click(true);
+                return;
             }
-            else
-                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation,"Es wurden keine Daten gesetzt");
-                 
-        }
+            if (data == null)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation, "Es wurden keine Daten gesetzt.");
+                return;
+            }
 
-        #endregion
-
-
-        #region Anpassen des Format-Strings und Umbenennen der Dateien
-        private void RenameFiles(List<FileInfo> infos)
-        {
             try
             {
-                foreach(FileInfo info in infos)
+                List<FileInfo> files = GetVisibleFiles();
+                var decision = new RenameCountDecision(files.Count, data.Count);
+                if (!decision.CanPreview)
                 {
-                    if (data.Count > pgBar.Value)
-                    {
-                        #region Anpassen des Format-Strings
-                        string absolutePath = Path.Combine(info.DirectoryName, FormatString(data[pgBar.Value], info.Directory.Name) + info.Extension);
-                        #endregion
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        "Es gibt keine passenden Datei-/Datenpaare für die Vorschau.");
+                    return;
+                }
 
-                        if (info.FullName != absolutePath)
-                        {
-                            File.Move(info.FullName, absolutePath);
-                            oldData.Add(info.FullName);
-                            newData.Add(absolutePath);
-                        }
-                    }
-                    pgBar.Value++;
+                // An inner empty row in the portion to be used is ambiguous and unsafe.
+                if (data.Take(decision.PairCount).Any(string.IsNullOrWhiteSpace))
+                {
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        "Die zu verwendenden Daten enthalten eine leere Zeile. Bitte diese zuerst korrigieren.");
+                    return;
+                }
+
+                if (decision.RequiresConfirmation)
+                {
+                    string warning = files.Count + " Dateien, aber " + data.Count +
+                        " Datenzeilen gefunden.\n\n" +
+                        "Es werden höchstens die ersten " + decision.PairCount +
+                        " Dateien in der sortierten Reihenfolge mit den ersten " +
+                        decision.PairCount + " Datenzeilen verbunden.\n" +
+                        decision.UntouchedFiles + " übrige Dateien bleiben unverändert.\n" +
+                        decision.IgnoredRows + " übrige Datenzeilen werden ignoriert.\n\n" +
+                        "Bitte die Zuordnung in der anschließenden Vorschau sorgfältig prüfen.\n" +
+                        "Trotzdem fortfahren?";
+                    if (MessageBox.Show(this, warning, "Abweichende Datei-/Datenanzahl",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                        return;
+                }
+
+                pgBar.Maximum = Math.Max(1, decision.PairCount);
+                var requests = new List<RenameRequest>();
+                for (int i = 0; i < decision.PairCount; i++)
+                {
+                    pgBar.Value = i;
+                    FileInfo file = files[i];
+                    string name = FormatString(data[i], file.Directory.Name, file.Name) + file.Extension;
+                    requests.Add(new RenameRequest(file.FullName, Path.Combine(file.DirectoryName, name)));
+                }
+
+                PreviewAndExecute(requests, false);
+            }
+            catch (Exception ex)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Error,
+                    "Umbenennung nicht geplant; keine Datei wurde geändert.\n" + ex.Message);
+            }
+            finally
+            {
+                pgBar.Value = 0;
+            }
+        }
+
+        private List<FileInfo> GetVisibleFiles()
+        {
+            var directory = new DirectoryInfo(txtPath.Text);
+            List<FileInfo> files = directory.GetFiles()
+                .Where(file => (file.Attributes & FileAttributes.Hidden) == 0).ToList();
+            files.Sort(new StringComparator());
+            return files;
+        }
+
+        /// <summary>
+        /// Every rename mode (including restore) passes through this single
+        /// validation, visual confirmation and revalidated execution path.
+        /// </summary>
+        private bool PreviewAndExecute(IEnumerable<RenameRequest> requests, bool restoring)
+        {
+            RenamePlan plan = RenamePlan.Create(requests);
+            using (var preview = new RenamePreviewDialog(plan))
+            {
+                if (preview.ShowDialog(this) != DialogResult.OK)
+                {
+                    txtMessage.Text = plan.ErrorCount > 0
+                        ? "Umbenennung blockiert: " + plan.ErrorCount + " Konflikte."
+                        : "Vorschau abgebrochen – keine Dateien geändert.";
+                    return false;
                 }
             }
-            catch (AbortException)
-            {
-                //  Wurde nur als Abort-Bedingung geworfen
-            }
-            catch (IndexOutOfRangeException)
-            {
 
+            try
+            {
+                IReadOnlyList<RenameRequest> moves = plan.Execute();
+                if (restoring)
+                {
+                    oldData = null;
+                    newData = null;
+                    txtMessage.Text = "Wiederhergestellt: " + moves.Count + " Dateien.";
+                }
+                else
+                {
+                    oldData = moves.Select(move => move.SourcePath).ToList();
+                    newData = moves.Select(move => move.DestinationPath).ToList();
+                    txtMessage.Text = "Erfolgreich umbenannt: " + moves.Count + " Dateien.";
+                }
+                return true;
+            }
+            catch (IOException ex)
+            {
+                txtMessage.Text = "Abgebrochen – Details beachten.";
+                MessageHandler.MessagesOK(MessageBoxIcon.Error, ex.Message);
+                return false;
             }
         }
         #endregion
 
 
         #region Format-String wird angepasst
-        private string FormatString(string row, string dirName)
+        private string FormatString(string row, string dirName, string originalFileName)
         {
             IEnumerable<string> text = Properties.Settings.Default.formatString.Split(new string[] { SettingHelper.Separator.ToString() }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -230,6 +264,21 @@ namespace Episode_Names
                         {
                             fullname.Append(dirName);
                         }
+                        else if (format == SettingHelper.SeasonNumber)
+                        {
+                            fullname.Append(SeasonNumberResolver.Resolve(originalFileName, dirName, row));
+                        }
+                        else if (format == SettingHelper.SeriesTitle)
+                        {
+                            // Based on the actual selected folder (including a
+                            // Staffel/Season subfolder), not a file-name index.
+                            string title = FolderSeriesName.Suggest(txtPath.Text);
+                            if (string.IsNullOrWhiteSpace(title))
+                                throw new InvalidOperationException(
+                                    "Der Serientitel konnte aus dem Ordner nicht erkannt werden. " +
+                                    "Bitte den Ordnernamen prüfen oder %series aus dem Format entfernen.");
+                            fullname.Append(title);
+                        }
                         else //Nummer 1-100
                         {
                             char a = txtSplit.Text == "\\t" ? '\t' : '\n';
@@ -239,26 +288,11 @@ namespace Episode_Names
                         fullname.Append(line.Substring(format.Length, line.Length - format.Length)); //Rest der nach dem %-Befehl steht. Bsp: %nabc also "abc"
                         #endregion
                     }
-                    catch (IndexOutOfRangeException)
+                    catch (IndexOutOfRangeException ex)
                     {
-                        //Falls eine Position im Format-String nicht existiert
-                        if (!abort)
-                        {
-                            DialogResult? res = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, $"Die Position {nbPosition.Value} mit dem Split-String: {txtSplit.Text} gibt es nicht\nVorgang fortsetzen?");
-
-                            if (res == DialogResult.No)
-                            {
-                                res = MessageHandler.MessagesYesNo(MessageBoxIcon.Question, "Restore ausführen?");
-                                if (res == DialogResult.Yes)
-                                    restore();
-                                throw new AbortException();
-                            }
-                            else
-                            {
-                                abort = true;
-                            }
-                        }
-
+                        throw new InvalidOperationException(
+                            "Eine Datenzeile enthält nicht die angeforderte Spalte " +
+                            nbPosition.Value + " (Trennzeichen: " + txtSplit.Text + ").", ex);
                     }
                 }
                 else
@@ -317,9 +351,7 @@ namespace Episode_Names
         #region Sonderzeichen werden ersetzt
         private static string ReplaceSpecialCharacters(string erg)
         {
-            return erg.Replace("?",   "？")
-                      .Replace(" : ", "：")
-                      .Replace(":",   "：")
+            return FilenameCharacters.ReplaceColon(erg).Replace("?",   "？")
                       .Replace("/",   " ∕ ")
                       .Replace("\\",  "＼")
                       .Replace("\"",  "''")
@@ -339,42 +371,22 @@ namespace Episode_Names
         #endregion
 
 
-        #region Zurücksetzen der Daten
+        #region Wiederherstellen mit Prüfung aller Zielnamen
         private void restore()
         {
-            pgBar.Value = 0;
-            if (oldData != null)
+            if (oldData == null || newData == null || oldData.Count == 0 ||
+                oldData.Count != newData.Count)
             {
-                try
-                {
-                    pgBar.Maximum = oldData.Count;
-                    for (int count = oldData.Count - 1; count >= 0; count--)
-                    {
-                        File.Move(newData[count], oldData[count]);
-                        pgBar.Value++;
-                    }
-                    oldData = null;
-                    newData = null;
-                    txtMessage.Text += "Restored!";
-                }
-                catch (IOException)
-                {
-                    MessageHandler.MessagesOK(MessageBoxIcon.Error, "Restore nicht möglich, da eine Datei den alten Namen einer anderen Datei besitzt.");
-                }
+                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation,
+                    "Es sind keine umbenannten Dateien zum Wiederherstellen vorhanden.");
+                return;
+            }
 
-                catch (Exception e1)
-                {
-                    ErrorHelper.HandleException(e1);
-                }
-                finally
-                {
-                    pgBar.Value = pgBar.Maximum;
-                }
-            }
-            else
-            {
-                MessageHandler.MessagesOK(MessageBoxIcon.Exclamation, "Es sind keine Daten zum Wiederherstellen vorhanden");
-            }
+            var requests = new List<RenameRequest>();
+            for (int i = oldData.Count - 1; i >= 0; i--)
+                requests.Add(new RenameRequest(newData[i], oldData[i]));
+
+            PreviewAndExecute(requests, true);
         }
         #endregion
 
@@ -415,7 +427,7 @@ namespace Episode_Names
             Data_Insert form = new Data_Insert();
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK)
-                data = string.IsNullOrWhiteSpace(form.getData()) ? null : form.getData().Split('\n').ToList();
+                data = MetadataRows.Parse(form.getData());
 
         }
         #endregion
@@ -441,7 +453,7 @@ namespace Episode_Names
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK)
             {
-                this.data = form.getData().Split('\n').ToList();
+                this.data = MetadataRows.Parse(form.getData());
             }
 
         }
@@ -486,10 +498,45 @@ namespace Episode_Names
 
 
 
+        private void automaticEpisodeSuggestions_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string path = txtPath.Text;
+                if (!Directory.Exists(path))
+                {
+                    MessageBox.Show(this, "Bitte zuerst einen gültigen Serienordner auswählen.",
+                        "Automatische Datenvorschläge", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // The existing rename preview works on every visible file in this
+                // order. Never suggest a subset that could shift positional pairing.
+                List<FileInfo> sorted = GetVisibleFiles();
+                if (sorted.Count == 0)
+                {
+                    MessageBox.Show(this, "Der Ordner enthält keine Dateien.",
+                        "Automatische Datenvorschläge", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                using (var dialog = new AutomaticEpisodeSuggestionsDialog(path,
+                    sorted.Select(file => file.Name).ToList()))
+                {
+                    if (dialog.ShowDialog(this) == DialogResult.OK && dialog.AcceptedRows != null)
+                        startData_Insert(dialog.AcceptedRows);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Automatische Vorschläge konnten nicht vorbereitet werden: " +
+                    ex.Message, "Episode Names", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         #region Anisearch Menüpunkt
         private void anisearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Anisearch_Table form = new Anisearch_Table();
+            Anisearch_Table form = new Anisearch_Table(txtPath.Text);
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK){
                 startData_Insert(form.getData());
@@ -579,107 +626,62 @@ namespace Episode_Names
         #endregion
 
 
-        #region Insert-, Delete-Position, Number Klick
+        #region Nummerierung, Positionen und Suchen/Ersetzen mit verpflichtender Vorschau
         private void renameWithoutData_Click(bool? numberClicked)
         {
-            /* numberClicked hat drei bzw. vier Zustände:
-                   null:                        btnNumber clicked
-                   true:                        Der einzige Befehl im Format-String ist %n
-                   false &&  cmbOption.Visible: Insert- oder Delete-Position clicked
-                   false && !cmbOption.Visible: Search & Rename
-            */
-            
-
-            List<FileInfo> infos = new List<FileInfo>( new DirectoryInfo(txtPath.Text).GetFiles().Select(f => f).Where(f => (f.Attributes & FileAttributes.Hidden) == 0));
-            infos.Sort(new StringComparator());
-            
-
-            pgBar.Maximum = infos.Count;
-
             try
             {
-                foreach (FileInfo info in infos)
-                {
-                    #region Anpassen des Format-Strings nach "Number", "Only %n" "Delete", "Insert" oder "Replace"
-                    string absolutePath = info.DirectoryName + "\\";
-                    string filename = info.Name.Replace(info.Extension, "");
+                List<FileInfo> files = GetVisibleFiles();
+                pgBar.Maximum = Math.Max(1, files.Count);
+                var requests = new List<RenameRequest>();
 
-                    #region Button "Number" wurde geklickt
+                for (int index = 0; index < files.Count; index++)
+                {
+                    FileInfo file = files[index];
+                    pgBar.Value = index;
+                    string filename = Path.GetFileNameWithoutExtension(file.Name);
+                    string newName;
+
                     if (numberClicked == null)
                     {
-                        int temp = pgBar.Value + Properties.Settings.Default.startNumber;
-                        string number = nullvalues(pgBar.Maximum - 1 + Properties.Settings.Default.startNumber, temp);
-                        number += temp;
-                        absolutePath += number;
+                        int number = index + Properties.Settings.Default.startNumber;
+                        newName = nullvalues(files.Count - 1 + Properties.Settings.Default.startNumber, number) + number;
                     }
-                    #endregion
-
-                    #region Im FormatString ist der einzige Befehl %n
                     else if (numberClicked == true)
                     {
-                        absolutePath += ReplaceSpecialCharacters(FormatString());
+                        newName = ReplaceSpecialCharacters(FormatString());
                     }
-                    #endregion
-
-                    #region Insert- oder Delete-Position wurde geklickt
                     else if (cmbOption.Visible)
                     {
-                        
-
-                        switch (cmbOption.SelectedIndex)
-                        {
-                            case 1:
-                                absolutePath += DeletePositions(filename);
-                                break;
-
-                            case 2:
-                                txtSplit.Text = ReplaceSpecialCharacters(txtSplit.Text);
-                                absolutePath += InsertPosition(filename);
-                                break;
-                        }
+                        if (cmbOption.SelectedIndex == 1)
+                            newName = DeletePositions(filename);
+                        else if (cmbOption.SelectedIndex == 2)
+                            newName = InsertPosition(filename);
+                        else
+                            throw new InvalidOperationException("Ungültige Umbenennungsoption.");
                     }
-                    #endregion
-
-                    #region Search & Rename wurde geklickt
                     else
                     {
-                        absolutePath += filename.Replace(ReplaceSpecialCharacters(txtSearch.Text), ReplaceSpecialCharacters(txtSplit.Text));
-                    }
-                    absolutePath += info.Extension;
-                    #endregion
-
-                    #endregion
-
-                    if (!info.FullName.Equals(absolutePath))
-                    {
-                        File.Move(info.FullName, absolutePath);
-                        oldData.Add(info.FullName);
-                        newData.Add(absolutePath);
+                        if (string.IsNullOrEmpty(txtSearch.Text))
+                            throw new InvalidOperationException("Bitte einen Suchtext eingeben.");
+                        newName = filename.Replace(ReplaceSpecialCharacters(txtSearch.Text),
+                            ReplaceSpecialCharacters(txtSplit.Text));
                     }
 
-                    pgBar.Value++;
-
+                    requests.Add(new RenameRequest(file.FullName,
+                        Path.Combine(file.DirectoryName, newName + file.Extension)));
                 }
-                txtMessage.Text = "Finished!!";
-            }
-            catch (IOException)
-            {
-                DialogResult? result = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, "Umbenennen nicht möglich, da sich schon eine Datei mit gleichen Namen im Ordner befindet.\nRestore durchführen?");
 
-                if (result == DialogResult.Yes)
-                    restore();
-            }
-            catch (AbortException)
-            {
-                //Abbruchbedingung
+                PreviewAndExecute(requests, false);
             }
             catch (Exception ex)
             {
-                ErrorHelper.HandleException(ex);
+                MessageHandler.MessagesOK(MessageBoxIcon.Error,
+                    "Vorschau konnte nicht erstellt werden – keine Datei wurde geändert.\n" + ex.Message);
             }
             finally
             {
-                pgBar.Value = pgBar.Maximum;
+                pgBar.Value = 0;
             }
         }
         #endregion
@@ -688,7 +690,7 @@ namespace Episode_Names
         #region Position an angegebener Stelle einfügen
         private string InsertPosition(string filename)
         {
-            filename = filename.Insert((int)(nbPosition.Value - 1), txtSplit.Text);
+            filename = filename.Insert((int)(nbPosition.Value - 1), ReplaceSpecialCharacters(txtSplit.Text));
 
             return filename;
         }
@@ -707,22 +709,11 @@ namespace Episode_Names
                 {
                     builder.Remove((position - 1), 1); //Position != Index
                 }
-                catch (ArgumentOutOfRangeException)
+                catch (ArgumentOutOfRangeException ex)
                 {
-                    if (!abort)
-                    {
-                        DialogResult? res = MessageHandler.MessagesYesNo(MessageBoxIcon.Error, $"Die Position {position} konnte nicht in jedem File gefunden werden\nVorgang fortsetzen?");
-
-                        if (res == DialogResult.No)
-                        {
-                            res = MessageHandler.MessagesYesNo(MessageBoxIcon.Question, "Restore ausführen?");
-                            if (res == DialogResult.Yes)
-                                restore();
-                            throw new AbortException();
-                        }
-                        else
-                            abort = true;
-                    }
+                    throw new InvalidOperationException(
+                        "Position " + position + " ist für die Datei " + filename +
+                        " nicht vorhanden. Bitte die Positionen korrigieren.", ex);
                 }
             }
 
@@ -815,12 +806,12 @@ namespace Episode_Names
 
         private void updateToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Updater.CheckUpdate(false, pgBar);
+            Updater.CheckUpdate(false, this);
         }
 
         private void infoToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("https://github.com/Kirdock/Episode-names/releases");
+            Process.Start("https://github.com/olevonpopole/Episode-names/releases");
         }
 
         private void ordnernamenHolenToolStripMenuItem_Click(object sender, EventArgs e)

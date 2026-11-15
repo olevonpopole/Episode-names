@@ -169,7 +169,23 @@ namespace Episode_Names.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string PreferredMetadataLanguage {
+            get { return ((string)(this["PreferredMetadataLanguage"])); }
+            set { this["PreferredMetadataLanguage"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool MetadataProviderSelectionMigrated {
+            get { return ((bool)(this["MetadataProviderSelectionMigrated"])); }
+            set { this["MetadataProviderSelectionMigrated"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("4")]
         public int SelectedWebsite {
             get {
                 return ((int)(this["SelectedWebsite"]));
@@ -179,6 +195,42 @@ namespace Episode_Names.Properties {
             }
         }
         
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TmdbCredential {
+            get {
+                return ((string)(this["TmdbCredential"]));
+            }
+            set {
+                this["TmdbCredential"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("tvmaze")]
+        public string AutoSearchFavorites {
+            get { return ((string)(this["AutoSearchFavorites"])); }
+            set { this["AutoSearchFavorites"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string GitHubUpdateToken {
+            get { return ((string)(this["GitHubUpdateToken"])); }
+            set { this["GitHubUpdateToken"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("olevonpopole/Episode-names")]
+        public string GitHubUpdateRepository {
+            get { return ((string)(this["GitHubUpdateRepository"])); }
+            set { this["GitHubUpdateRepository"] = value; }
+        }
+
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]

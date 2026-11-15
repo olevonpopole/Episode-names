@@ -20,6 +20,18 @@ namespace Episode_Names
             InitializeComponent();
             mainForm = form;
             setData();
+            // Display the new token beside the existing format reference
+            // without changing the legacy Windows Forms designer layout.
+            var seriesHelp = new System.Windows.Forms.Label {
+                AutoSize = true, Location = new System.Drawing.Point(11, 198),
+                Text = "Serientitel:       %series"
+            };
+            txtFormat.Parent.Controls.Add(seriesHelp);
+            var seasonHelp = new System.Windows.Forms.Label {
+                AutoSize = true, Location = new System.Drawing.Point(11, 218),
+                Text = "Staffelnummer:  %season  (z. B. 02)"
+            };
+            txtFormat.Parent.Controls.Add(seasonHelp);
         }
 
         #region Vordergrund (TopMost) in MainForm setzen, wenn geändert
