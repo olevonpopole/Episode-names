@@ -19,17 +19,15 @@ namespace Episode_Names.Anisearch
     public partial class Anisearch_Table : Form
     {
         private List<string> episodeList;
-        private const int TvMazeIndex = 4;
-        private const int TmdbIndex = 5;
+        private const int AnisearchIndex = MetadataSelection.Anisearch;
+        private const int TvMazeIndex = MetadataSelection.TvMaze;
+        private const int TmdbIndex = MetadataSelection.Tmdb;
         private Label lblTmdbCredential;
         private TextBox txtTmdbCredential;
         private Button btnTmdbSave;
         private Button btnTmdbDelete;
         private bool suppressApiSelection;
         private readonly IEpisodeMetadataProvider tvMaze = new TvMazeProvider();
-        private readonly string tvdbDomain = "https://www.thetvdb.com";
-        private readonly string aniDBDomain = "https://anidb.net/perl-bin/";
-        private readonly string fernsehserienDomain = "https://www.fernsehserien.de";
 
         public Anisearch_Table()
         {
@@ -42,97 +40,81 @@ namespace Episode_Names.Anisearch
         private void setData()
         {
             TopMost = Properties.Settings.Default.Foreground;
-            int selected = Properties.Settings.Default.SelectedWebsite;
-            cmbWebsite.SelectedIndex = selected >= 0 && selected < cmbWebsite.Items.Count ? selected : TvMazeIndex;
+            // Old versions stored indices 0..5. Migrate once; index 2 now means TMDB.
+            // The migration flag prevents interpreting a new selection as an old one.
+            if (!Properties.Settings.Default.MetadataProviderSelectionMigrated)
+            {
+                int legacy = Properties.Settings.Default.SelectedWebsite;
+                if (string.IsNullOrWhiteSpace(Properties.Settings.Default.PreferredMetadataLanguage))
+                    Properties.Settings.Default.PreferredMetadataLanguage =
+                        MetadataSelection.MigrateLegacySearchLanguage(
+                            legacy, Properties.Settings.Default.SecondLanguage);
+                Properties.Settings.Default.SelectedWebsite =
+                    MetadataSelection.MigrateLegacyProvider(legacy);
+                Properties.Settings.Default.MetadataProviderSelectionMigrated = true;
+                Properties.Settings.Default.Save();
+            }
+
+            int saved = Properties.Settings.Default.SelectedWebsite;
+            cmbWebsite.SelectedIndex = saved >= 0 && saved < cmbWebsite.Items.Count
+                ? saved : TvMazeIndex;
             setCmbLanguages();
-
         }
-        #endregion
 
+        private static List<KeyValuePair<string, string>> LanguageChoices(int provider)
+        {
+            var choices = new List<KeyValuePair<string, string>>();
+            if (provider == AnisearchIndex)
+            {
+                choices.Add(new KeyValuePair<string, string>("de", "Deutsch"));
+                choices.Add(new KeyValuePair<string, string>("en", "English"));
+                choices.Add(new KeyValuePair<string, string>("ja", "日本語"));
+            }
+            else if (provider == TmdbIndex)
+            {
+                choices.Add(new KeyValuePair<string, string>("de", "Deutsch"));
+                choices.Add(new KeyValuePair<string, string>("en", "English"));
+            }
+            else
+            {
+                // TVmaze only exposes its original (mainly English) titles.
+                choices.Add(new KeyValuePair<string, string>("en", "English"));
+            }
+            return choices;
+        }
 
         private void setCmbLanguages()
         {
-            cmbLanguageEpisodes.DataSource = cmbWebsite.SelectedIndex == TmdbIndex ? getLanguageData() : (cmbWebsite.SelectedIndex == 0 || cmbWebsite.SelectedIndex == TvMazeIndex ? getEnglish() : cmbWebsite.SelectedIndex == 2 ? getGerman() : getLanguagesWithJapanese());
+            var languages = LanguageChoices(cmbWebsite.SelectedIndex);
+            cmbLanguageSearch.DataSource = new List<KeyValuePair<string, string>>(languages);
+            cmbLanguageSearch.DisplayMember = "Value";
+            cmbLanguageSearch.ValueMember = "Key";
+            cmbLanguageEpisodes.DataSource = new List<KeyValuePair<string, string>>(languages);
             cmbLanguageEpisodes.DisplayMember = "Value";
             cmbLanguageEpisodes.ValueMember = "Key";
 
-
-            List<KeyValuePair<string, string>> languages = new List<KeyValuePair<string, string>>();
-            if (cmbWebsite.SelectedIndex == 0 || cmbWebsite.SelectedIndex == TvMazeIndex)
-            {
-                languages = getEnglish();
-            }
-
-            else if (cmbWebsite.SelectedIndex == TmdbIndex)
-            {
-                languages = getLanguageData();
-            }
-            else if (cmbWebsite.SelectedIndex == 1)
-            {
-                languages.Add(new KeyValuePair<string, string>("com", "None"));
-            }
-            else if (cmbWebsite.SelectedIndex == 2)
-            {
-                languages = getGerman();
-            }
-
-            else
-            {
-                languages.AddRange(getLanguagesWithJapanese());
-            }
-            cmbLanguageSearch.DataSource = languages;
-            cmbLanguageSearch.DisplayMember = "Value";
-            cmbLanguageSearch.ValueMember = "Key";
-
-            cmbLanguageSearch.SelectedIndex = Math.Min(Math.Max(0, Properties.Settings.Default.SecondLanguage), cmbLanguageSearch.Items.Count - 1);
-            cmbLanguageEpisodes.SelectedIndex = Math.Min(Math.Max(0, Properties.Settings.Default.Language), cmbLanguageEpisodes.Items.Count - 1);
-
+            string preferred = Properties.Settings.Default.PreferredMetadataLanguage;
+            int index = MetadataSelection.FindLanguageIndex(languages, preferred);
+            cmbLanguageSearch.SelectedIndex = index;
+            cmbLanguageEpisodes.SelectedIndex = index;
         }
 
-        private void addGerman(List<KeyValuePair<string, string>> languages)
+        private void RememberSearchLanguage()
         {
-            languages.Add(new KeyValuePair<string, string>("de", "Deutsch"));
-        }
+            if (cmbWebsite.SelectedIndex == TvMazeIndex ||
+                !(cmbLanguageSearch.SelectedItem is KeyValuePair<string, string>))
+                return;
 
-        private void addEnglish(List<KeyValuePair<string, string>> languages)
-        {
-            languages.Add(new KeyValuePair<string, string>("en", "English"));
-        }
+            string code = ((KeyValuePair<string, string>)cmbLanguageSearch.SelectedItem).Key;
+            Properties.Settings.Default.PreferredMetadataLanguage =
+                MetadataSelection.CanonicalLanguage(code);
+            Properties.Settings.Default.Save();
 
-        private List<KeyValuePair<string, string>> getGerman()
-        {
-            List<KeyValuePair<string, string>> list = new List<KeyValuePair<string, string>>();
-            addGerman(list);
-            return list;
+            // Use the last searched language as the default episode language too.
+            var choices = (List<KeyValuePair<string, string>>)cmbLanguageEpisodes.DataSource;
+            cmbLanguageEpisodes.SelectedIndex =
+                MetadataSelection.FindLanguageIndex(choices, code);
         }
-
-        private List<KeyValuePair<string, string>> getEnglish()
-        {
-            List<KeyValuePair<string, string>> list = new List<KeyValuePair<string, string>>();
-            addEnglish(list);
-            return list;
-        }
-
-        private void addJapanese(List<KeyValuePair<string, string>> languages)
-        {
-            languages.Add(new KeyValuePair<string, string>("ja", "日本語"));
-        }
-
-        private List<KeyValuePair<string, string>> getLanguageData()
-        {
-            List<KeyValuePair<string, string>> languages = new List<KeyValuePair<string, string>>();
-            addGerman(languages);
-            addEnglish(languages);
-            return languages;
-        }
-
-        private List<KeyValuePair<string, string>> getLanguagesWithJapanese()
-        {
-            List<KeyValuePair<string, string>> languages = getLanguageData();
-            addJapanese(languages);
-            return languages;
-        }
-
 
         private async void btnOk_Click(object sender, EventArgs e)
         {
@@ -146,40 +128,38 @@ namespace Episode_Names.Anisearch
                 await LoadTmdbEpisodesAsync();
                 return;
             }
+            if (cmbWebsite.SelectedIndex != AnisearchIndex)
+                return;
 
             string language = ((KeyValuePair<string, string>)cmbLanguageEpisodes.SelectedItem).Key;
-            int selectedIndex = cmbWebsite.SelectedIndex;
-            string url = txtUrl.Text;
-            string urlTVDB = cmbSeasons.SelectedItem != null ? ((KeyValuePair<string, string>)cmbSeasons.SelectedItem).Key : null;
-            int season = cmbSeasons.SelectedIndex;
+            string url;
+            if (!checkUrlAnisearch(language, txtUrl.Text, out url))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte eine gültige HTTPS-URL einer AniSearch-Anime-Serie eingeben.");
+                return;
+            }
 
+            StartProgressBar();
             new Thread(() =>
             {
-                bool valid = false;
+                bool completed = false;
                 try
                 {
-                    StartProgressBar();
-                    List<string> result = null;
-                    if (selectedIndex == 1 && (valid = checkUrlAnisearch(language, url, out url))) //Anisearch
-                    {
-                        result = getEpisodeList(url, language);
-                    }
-                    else if (selectedIndex == 3 && (valid = checkUrlTVDB(url, out url)))
-                    {
-
-                        result = GetEpisodeListTVDB(urlTVDB, language);
-                    }
-                    else if (selectedIndex == 0 && (valid = checkUrlAniDB(url)))
-                    {
-                        result = getEpisodeListAniDB(url);
-                    }
-                    else if (valid = checkUrlFernsehserien(url, out url))
-                    {
-                        result = getEpisodeListFernsehserien(url, season);
-                    }
-                    setUrl(url);
-                    episodeList = result;
-
+                    List<string> results = getEpisodeList(url, language);
+                    if (results == null || results.Count == 0)
+                        throw new InvalidOperationException("AniSearch liefert keine Episodentitel.");
+                    episodeList = results;
+                    completed = true;
+                    if (IsHandleCreated && !IsDisposed)
+                        BeginInvoke(new MethodInvoker(() =>
+                        {
+                            if (IsDisposed) return;
+                            txtUrl.Text = url;
+                            pgLoading.Style = ProgressBarStyle.Blocks;
+                            DialogResult = DialogResult.OK;
+                            Close();
+                        }));
                 }
                 catch (Exception ex)
                 {
@@ -187,169 +167,10 @@ namespace Episode_Names.Anisearch
                 }
                 finally
                 {
-                    StopProgressBar();
-                    if (valid)
-                    {
-                        CloseForm();
-                    }
-                    else
-                    {
-                        ErrorMessage(new UriFormatException());
-                    }
+                    if (!completed && IsHandleCreated && !IsDisposed)
+                        StopProgressBar();
                 }
             }).Start();
-        }
-
-        private bool checkUrlFernsehserien(string inputUrl, out string url)
-        {
-            bool valid;
-            url = string.Empty;
-            string startText = "https://www.fernsehserien.de/";
-            if (valid = inputUrl.StartsWith(startText))
-            {
-                inputUrl = inputUrl.Replace(startText, string.Empty);
-                string searchText = inputUrl.Split(new string[] { "/" }, StringSplitOptions.RemoveEmptyEntries)[0];
-                string changedUrl = startText + searchText + "/episodenguide";
-                HtmlWeb htmlWeb = new HtmlWeb();
-                HtmlAgilityPack.HtmlDocument doc = htmlWeb.Load(changedUrl);
-
-                if (valid = doc.DocumentNode.SelectSingleNode("//nav[@class='series-menu']") != null)
-                {
-                    url = changedUrl;
-                }
-            }
-            return valid;
-        }
-
-        private List<string> getEpisodeListFernsehserien(string url, int season)
-        {
-
-            List<string> episodeList = new List<string>();
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(url);
-
-            HtmlNodeCollection tables = doc.DocumentNode.SelectNodes("//table[contains(@class,'episodenliste')]//tbody[@itemprop='season' or @itemprop='containsSeason']");
-            HtmlNodeCollection newTables = doc.DocumentNode.SelectNodes("//div[@class='episodenliste-2019']");
-            int beginCounter = season == 0 ? 0 : season - 1;
-            if (newTables == null)
-            {
-                int endCounter = season == 0 ? tables.Count - 1 : season - 1;
-                for (int i = beginCounter; i <= endCounter; i++)
-                {
-                    foreach (HtmlNode row in tables[i].SelectNodes("tr[@itemprop='episode']"))
-                    {
-                        StringBuilder builder = new StringBuilder();
-
-                        builder.Append(WebUtility.HtmlDecode(row.SelectNodes("td")[1]?.InnerText ?? string.Empty).Trim()).Append("\t");
-                        builder.Append(WebUtility.HtmlDecode(row.SelectNodes("td")[4]?.InnerText ?? string.Empty).Trim()).Append("\t");
-                        var episodeTitle = row.SelectSingleNode("td//span[@itemprop='name']")?.InnerText ?? row.SelectSingleNode("td [@lang='ja']//span[@itemprop='name']")?.InnerText ?? string.Empty;
-                        builder.Append(WebUtility.HtmlDecode(episodeTitle).Trim());
-
-                        episodeList.Add(builder.ToString().Trim());
-                    }
-                }
-            }
-            else
-            {
-                int endCounter = season == 0 ? newTables.Count - 1 : season - 1;
-                for (int i = beginCounter; i <= endCounter; i++)
-                {
-                    foreach (HtmlNode row in newTables[i].SelectNodes("a"))
-                    {
-                        string episodeNumber = row.SelectSingleNode("div[@role='cell' and @itemprop='episodeNumber']")?.Attributes["content"]?.Value;
-                        string titleGerman = row.SelectSingleNode("div[@role='cell']/span[@itemprop='name']")?.InnerText;
-                        string titleFallback = titleGerman ?? row.SelectSingleNode("div[@role='cell' and @lang='ja']")?.InnerText;
-
-                        episodeList.Add($"{FormatWebString(episodeNumber)}\t{FormatWebString(titleFallback)}");
-                    }
-                }
-            }
-            return episodeList;
-        }
-
-        private string FormatWebString(string text)
-        {
-            return WebUtility.HtmlDecode(text ?? string.Empty).Trim();
-        }
-
-        private List<string> GetEpisodeListTVDB(string url, string language)
-        {
-
-            language = language == "com" ? "en" : language;
-
-            List<string> episodeList = new List<string>();
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(url);
-
-            foreach (HtmlNode table in doc.DocumentNode.SelectNodes("//table[@id='translations']//tbody"))
-            {
-                foreach (HtmlNode row in table.SelectNodes("tr"))
-                {
-                    string line = null;
-                    try
-                    {
-                        StringBuilder builder = new StringBuilder();
-
-                        builder.Append(WebUtility.HtmlDecode(row.SelectNodes("td")[0].SelectSingleNode("a").InnerText).Trim()).Append("\t");
-
-                        HtmlNode episodeName = row.SelectNodes("td/a")[1].SelectSingleNode($"span[@data-language='{language}']");
-
-                        line = builder.ToString();
-                        if (episodeName != null)
-                        {
-                            builder.Append(WebUtility.HtmlDecode(episodeName.InnerText).Trim());
-                        }
-
-                        line = builder.ToString();
-                    }
-                    catch (NullReferenceException)
-                    {
-                    }
-
-
-                    if (line != null)
-                    {
-                        episodeList.Add(line.Trim());
-                    }
-                }
-            }
-            return episodeList;
-        }
-
-        private List<string> getEpisodeListAniDB(string url)
-        {
-
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(url);
-
-
-            List<string> episodeList = new List<string>();
-
-            foreach (HtmlNode row in doc.DocumentNode.SelectSingleNode("//table[@id='eplist']//tbody").SelectNodes("tr"))
-            {
-                string line = null;
-                try
-                {
-                    StringBuilder builder = new StringBuilder();
-                    var list = row.SelectNodes("td");
-
-                    builder.Append(WebUtility.HtmlDecode(list[0].InnerText).Trim()).Append("\t");
-                    builder.Append(WebUtility.HtmlDecode(list[1].InnerText).Trim());
-                    line = builder.ToString();
-
-
-                }
-                catch (NullReferenceException)
-                {
-                }
-
-
-                if (line != null)
-                {
-                    episodeList.Add(line.Trim());
-                }
-            }
-            return episodeList;
         }
 
         private string getAnisearchDomain()
@@ -366,16 +187,24 @@ namespace Episode_Names.Anisearch
 
         private bool checkUrlAnisearch(string language, string inputUrl, out string url)
         {
-            bool valid;
-            url = string.Empty;
-            string[] text = inputUrl.Replace("http://", "").Replace("https://", "").Split(new string[] { "/" }, StringSplitOptions.RemoveEmptyEntries);
-            if (valid = (inputUrl.ToUpper().Contains("ANISEARCH.") && text.Length >= 3))
-            {
-                url = getDomainEpisodes(language) + "/" + text[1] + "/" + text[2] + "/episodes";
-            }
-            return valid;
+            url = "";
+            Uri uri;
+            if (!Uri.TryCreate(inputUrl, UriKind.Absolute, out uri) ||
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !(uri.Host.Equals("www.anisearch.de", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.Equals("anisearch.de", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.Equals("www.anisearch.com", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.Equals("anisearch.com", StringComparison.OrdinalIgnoreCase)))
+                return false;
+            string[] parts = uri.AbsolutePath.Split(new[] { '/' },
+                StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 3 || !parts[0].Equals("anime", StringComparison.OrdinalIgnoreCase))
+                return false;
+            url = getDomainEpisodes(language) + "/anime/" +
+                Uri.EscapeDataString(Uri.UnescapeDataString(parts[1])) + "/" +
+                Uri.EscapeDataString(Uri.UnescapeDataString(parts[2])) + "/episodes";
+            return true;
         }
-
 
         private void txtUrl_KeyDown(object sender, KeyEventArgs e)
         {
@@ -494,142 +323,49 @@ namespace Episode_Names.Anisearch
 
         private async void txtSearch_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Enter)
+            if (e.KeyCode != Keys.Enter)
+                return;
+            e.SuppressKeyPress = true;
+            if (cmbWebsite.SelectedIndex == TvMazeIndex)
             {
-                if (cmbWebsite.SelectedIndex == TvMazeIndex)
+                await SearchTvMazeAsync();
+                return;
+            }
+            if (cmbWebsite.SelectedIndex == TmdbIndex)
+            {
+                await SearchTmdbAsync();
+                return;
+            }
+            if (cmbWebsite.SelectedIndex != AnisearchIndex)
+                return;
+
+            string query = txtSearch.Text.Trim();
+            if (query.Length == 0)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Information,
+                    "Bitte einen Serientitel eingeben.");
+                return;
+            }
+            RememberSearchLanguage();
+            string domain = getAnisearchDomain();
+            string searchUrl = getSearchUrlAnisearch(query, domain);
+            StartProgressBar();
+            new Thread(() =>
+            {
+                try
                 {
-                    e.SuppressKeyPress = true;
-                    await SearchTvMazeAsync();
-                    return;
+                    searchTextAnisearch(searchUrl, domain);
                 }
-                if (cmbWebsite.SelectedIndex == TmdbIndex)
+                catch (Exception ex)
                 {
-                    e.SuppressKeyPress = true;
-                    await SearchTmdbAsync();
-                    return;
+                    ErrorMessage(ex);
                 }
-                StartProgressBar();
-
-                string searchText = txtSearch.Text;
-                string domain = getAnisearchDomain();
-                int index = cmbWebsite.SelectedIndex;
-                int selectedLanguageIndex = cmbLanguageSearch.SelectedIndex;
-                string selectedLanguage = ((KeyValuePair<string, string>)cmbLanguageSearch.SelectedItem).Key;
-                new Thread(() =>
+                finally
                 {
-                    try
-                    {
-                        switch (index)
-                        {
-                            case 0: //aniDB
-                                searchTextAniDB(searchText);
-                                break;
-
-
-                            case 1: //Anisearch
-                                searchTextAnisearch(getSearchUrlAnisearch(searchText, domain), domain);
-                                break;
-
-                            case 2: //Fernsehserien.de
-                                searchTextFernsehserien(searchText);
-                                break;
-
-                            case 3: //TVDB
-                                string language = selectedLanguageIndex == 0 ? "de" : selectedLanguage;
-                                searchTextTVDB(searchText, language);
-                                break;
-                        }
-                    }
-                    catch (Exception exception)
-                    {
-                        ErrorMessage(exception);
-                    }
-                    finally
-                    {
+                    if (!IsDisposed && IsHandleCreated)
                         StopProgressBar();
-                    }
-                }).Start();
-
-            }
-        }
-
-        private string adjustSearchTextTVDB(string text)
-        {
-            return text.Replace("/", "%2F");
-        }
-
-        private void searchTextFernsehserien(string searchText)
-        {
-            Uri ur = new Uri($"{fernsehserienDomain}/suche/{adjustSearchTextTVDB(searchText).Replace("%2F", " ")}");
-            List<KeyValuePair<string, string>> resultUrl = new List<KeyValuePair<string, string>>();
-
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(ur.AbsoluteUri);
-            string url = web.ResponseUri.ToString();
-            if (!url.StartsWith(fernsehserienDomain + "/suche/"))
-            {
-                setUrl(url);
-                getSeasonsFernsehserien(url);
-            }
-            else
-            {
-                foreach (HtmlNode entry in doc.DocumentNode.SelectNodes("//li[contains(@class,'suchergebnisse-sendung')]"))
-                {
-                    string text = WebUtility.HtmlDecode(entry.SelectSingleNode("a/dl/dt").InnerText);
-                    string nurl = WebUtility.HtmlDecode(entry.SelectSingleNode("a[@href]").Attributes["href"].Value);
-                    resultUrl.Add(new KeyValuePair<string, string>(fernsehserienDomain + nurl + "/episodenguide", text));
                 }
-                setReceivedUrls(resultUrl);
-            }
-        }
-
-
-        private void searchTextAniDB(string searchText)
-        {
-            string baseUrl = "https://anidb.net/perl-bin/animedb.pl?";
-            Uri ur = new Uri($"{baseUrl}adb.search={adjustSearchTextTVDB(searchText)}&show=animelist&do.search=search");
-            List<KeyValuePair<string, string>> resultUrl = new List<KeyValuePair<string, string>>();
-
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(ur.AbsoluteUri);
-
-            string url = web.ResponseUri.ToString();
-            if (url.StartsWith($"{baseUrl}?show=anime&aid="))
-            {
-                setUrl(url);
-            }
-            else
-            {
-                HtmlNode table = doc.DocumentNode.SelectNodes("//table[@id= 'animelist']//tbody")[0];
-                foreach (HtmlNode row in table.SelectNodes("tr"))
-                {
-                    string text = WebUtility.HtmlDecode(row.SelectSingleNode("td[@data-label='Title']//a").InnerText);
-                    string nurl = WebUtility.HtmlDecode(row.SelectSingleNode("td//a[@href]").Attributes["href"].Value);
-                    resultUrl.Add(new KeyValuePair<string, string>(aniDBDomain + nurl, text));
-                }
-                setReceivedUrls(resultUrl);
-            }
-        }
-
-        private void searchTextTVDB(string searchText, string language) //Thread
-        {
-            Uri ur = new Uri($@"{tvdbDomain}/search?q={adjustSearchTextTVDB(searchText)}&l={language}");
-
-            List<KeyValuePair<string, string>> resultUrl = new List<KeyValuePair<string, string>>();
-
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(ur.AbsoluteUri);
-
-
-            HtmlNode table = doc.DocumentNode.SelectNodes("//table//tbody")[0];
-
-            foreach (HtmlNode row in table.SelectNodes("tr"))
-            {
-                string text = WebUtility.HtmlDecode(row.SelectSingleNode("td//a").InnerText);
-                string nurl = WebUtility.HtmlDecode(row.SelectSingleNode("td//a[@href]").Attributes["href"].Value);
-                resultUrl.Add(new KeyValuePair<string, string>(tvdbDomain + nurl, text));
-            }
-            setReceivedUrls(resultUrl);
+            }).Start();
         }
 
         private void searchTextAnisearch(string url, string domain) //Thread
@@ -740,96 +476,30 @@ namespace Episode_Names.Anisearch
 
         private async void listResult_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (listResult.SelectedIndex != -1)
-            {
-                if (suppressApiSelection)
-                    return;
-                if (cmbWebsite.SelectedIndex == TvMazeIndex)
-                {
-                    await LoadTvMazeSeasonsAsync(((KeyValuePair<string, string>)listResult.SelectedItem).Key);
-                    return;
-                }
-                if (cmbWebsite.SelectedIndex == TmdbIndex)
-                {
-                    await LoadTmdbSeasonsAsync(((KeyValuePair<string, string>)listResult.SelectedItem).Key);
-                    return;
-                }
-                string url = ((KeyValuePair<string,string>)listResult.SelectedItem).Key;
-                StartProgressBar();
-                int selectedIndex = cmbWebsite.SelectedIndex;
-                new Thread(() =>
-                {
-                    try
-                    {
-                        if (selectedIndex == 3) //TVDB
-                        {
-                            getSeasons(url);
-                        }
-                        else if (selectedIndex == 2) //Fernsehserien
-                        {
-                            getSeasonsFernsehserien(url);
-                        }
-                        StopProgressBar();
+            if (suppressApiSelection || listResult.SelectedIndex < 0)
+                return;
 
-                        txtUrl.BeginInvoke(new MethodInvoker(() =>
-                        {
-                            txtUrl.Text = url;
-                        }));
-                    }
-                    catch(Exception ex)
-                    {
-                        ErrorMessage(ex);
-                    }
-                    finally
-                    {
-                        StopProgressBar();
-                    }
-                }).Start();
+            string url = ((KeyValuePair<string, string>)listResult.SelectedItem).Key;
+            if (cmbWebsite.SelectedIndex == TvMazeIndex)
+            {
+                await LoadTvMazeSeasonsAsync(url);
+                return;
             }
-        }
-
-        private void getSeasonsFernsehserien(string url)
-        {
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(url);
-            IEnumerable<KeyValuePair<string, string>> seasons = doc.DocumentNode.SelectNodes("//nav[@class='series-menu']/ul/li[a[contains(text(), 'Episoden')]]/ul/li/a[1]")?.Select(node => new KeyValuePair<string, string>(fernsehserienDomain + node.Attributes["href"].Value, node.InnerText));
-            List<KeyValuePair<string, string>> resultUrl = seasons?.ToList() ?? new List<KeyValuePair<string, string>>() { new KeyValuePair<string, string>(url, "Übersicht") };
-            setSeasons(resultUrl);
-        }
-
-        private void getSeasons(string url)
-        {
-            HtmlWeb web = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = web.Load(url);
-
-            HtmlNode table = doc.DocumentNode.SelectSingleNode("//ul[@class= 'list-group list-group-condensed']");
-            List<KeyValuePair<string, string>> resultUrl = new List<KeyValuePair<string, string>>();
-
-            foreach (HtmlNode row in table.SelectNodes("li[@class= 'list-group-item']"))
+            if (cmbWebsite.SelectedIndex == TmdbIndex)
             {
-                string text = WebUtility.HtmlDecode(row.SelectSingleNode("h4/a").InnerText).Trim();
-                string nurl = WebUtility.HtmlDecode(row.SelectSingleNode("h4/a[@href]").Attributes["href"].Value);
-                resultUrl.Add(new KeyValuePair<string, string>(tvdbDomain + nurl, text));
+                await LoadTmdbSeasonsAsync(url);
+                return;
             }
-            setSeasons(resultUrl);
-        }
-
-        private void setSeasons(object data)
-        {
-            cmbSeasons.BeginInvoke(new MethodInvoker(() =>
-            {
-                cmbSeasons.DataSource = null;
-                cmbSeasons.DataSource = data;
-                cmbSeasons.DisplayMember = "Value";
-                cmbSeasons.ValueMember = "Key";
-            }));
+            if (cmbWebsite.SelectedIndex == AnisearchIndex)
+                txtUrl.Text = url;
         }
 
         private void cmbWebsite_SelectedIndexChanged(object sender, EventArgs e)
         {
             listResult.DataSource = null;
             cmbSeasons.DataSource = null;
-            lblSeason.Visible = cmbSeasons.Visible = cmbWebsite.SelectedIndex > 1;
+            txtUrl.Clear();
+            lblSeason.Visible = cmbSeasons.Visible = cmbWebsite.SelectedIndex != AnisearchIndex;
             setCmbLanguages();
             ShowTmdbCredentialControls();
         }
@@ -846,66 +516,14 @@ namespace Episode_Names.Anisearch
                 await LoadTmdbSeasonsAsync(txtUrl.Text);
                 return;
             }
-            string url = txtUrl.Text;
             string language = ((KeyValuePair<string, string>)cmbLanguageEpisodes.SelectedItem).Key;
-            bool valid = cmbWebsite.SelectedIndex == 1 && checkUrlAnisearch(language,url, out url) || cmbWebsite.SelectedIndex == 0 && checkUrlAniDB(url);
-            int selectedIndex = cmbWebsite.SelectedIndex;
-            StartProgressBar();
-
-            new Thread(() =>
-            {
-                if (selectedIndex == 3 && (valid = checkUrlTVDB(url, out url))) {
-                
-                    getSeasons(url);
-                }
-                else if(selectedIndex == 2 && (valid = checkUrlFernsehserien(url, out url)))
-                {
-                    getSeasonsFernsehserien(url);
-                }
-                
-                StopProgressBar();
-                if (!valid)
-                {
-                    ErrorMessage(new UriFormatException());
-                }
-                setUrl(url);
-            }).Start();
+            string url;
+            if (!checkUrlAnisearch(language, txtUrl.Text, out url))
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte eine gültige HTTPS-URL einer AniSearch-Anime-Serie eingeben.");
+            else
+                txtUrl.Text = url;
         }
-
-        private bool checkUrlTVDB(string inputUrl, out string url)
-        {
-            bool valid = false;
-            url = string.Empty;
-            string startText = "https://www.thetvdb.com/series/";
-            if (inputUrl.StartsWith(startText))
-            {
-                string search = inputUrl.Replace(startText, string.Empty);
-
-                if(search.IndexOf("/") != -1)
-                {
-                    search = search.Split(new string[] { "/" }, StringSplitOptions.RemoveEmptyEntries)[0];
-
-                }
-                HtmlWeb htmlWeb = new HtmlWeb();
-                HttpStatusCode lastStatusCode = HttpStatusCode.OK;
-
-                htmlWeb.PostResponse = (request, response) =>
-                {
-                    if (response != null)
-                    {
-                        lastStatusCode = response.StatusCode;
-                    }
-                };
-                htmlWeb.Load(inputUrl);
-                if(valid = (lastStatusCode == HttpStatusCode.OK))
-                {
-                    url = $"{startText}{search}";
-                }
-            }
-            return valid;
-        }
-
-
 
         private void InitializeTmdbCredentialControls()
         {
@@ -1031,6 +649,7 @@ namespace Episode_Names.Anisearch
                 return;
             }
 
+            RememberSearchLanguage();
             SetTvMazeBusy(true);
             try
             {
@@ -1338,11 +957,5 @@ namespace Episode_Names.Anisearch
                 .Trim().TrimEnd('.', ' ');
         }
 
-        private bool checkUrlAniDB(string url)
-        {
-            HtmlWeb htmlWeb = new HtmlWeb();
-            HtmlAgilityPack.HtmlDocument doc = htmlWeb.Load(url);
-            return doc.DocumentNode.SelectSingleNode("//table[@id='eplist']//tbody") != null;
-        }
     }
 }
