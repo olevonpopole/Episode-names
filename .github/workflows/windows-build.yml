@@ -37,3 +37,17 @@ jobs:
           path: dist/EpisodeNames-Windows-Test/
           if-no-files-found: error
           retention-days: 14
+      - name: Assemble portable release candidate (not published)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        shell: pwsh
+        run: ./scripts/package-windows-release.ps1
+      - name: Upload portable release candidate artifact (not a GitHub Release)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/metadata-providers'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EpisodeNames-Windows-Release-Candidate-${{ github.sha }}
+          path: |
+            dist/EpisodeNames-Windows-Portable.zip
+            dist/EpisodeNames-Windows-Portable.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
