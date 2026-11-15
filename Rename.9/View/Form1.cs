@@ -136,7 +136,7 @@ namespace Episode_Names
                 {
                     pgBar.Value = i;
                     FileInfo file = files[i];
-                    string name = FormatString(data[i], file.Directory.Name) + file.Extension;
+                    string name = FormatString(data[i], file.Directory.Name, file.Name) + file.Extension;
                     requests.Add(new RenameRequest(file.FullName, Path.Combine(file.DirectoryName, name)));
                 }
 
@@ -208,7 +208,7 @@ namespace Episode_Names
 
 
         #region Format-String wird angepasst
-        private string FormatString(string row, string dirName)
+        private string FormatString(string row, string dirName, string originalFileName)
         {
             IEnumerable<string> text = Properties.Settings.Default.formatString.Split(new string[] { SettingHelper.Separator.ToString() }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -255,6 +255,10 @@ namespace Episode_Names
                         else if (format == SettingHelper.Directory)
                         {
                             fullname.Append(dirName);
+                        }
+                        else if (format == SettingHelper.SeasonNumber)
+                        {
+                            fullname.Append(SeasonNumberResolver.Resolve(originalFileName, dirName, row));
                         }
                         else if (format == SettingHelper.SeriesTitle)
                         {
