@@ -24,12 +24,22 @@ Nach jedem Versuch den tatsächlichen Dateibestand im Windows-Explorer überprü
 | R04 | Rückgängig | **Wiederherstellen** wählen, Vorschau prüfen und bestätigen | Alle 3 ursprünglichen Namen sind wiederhergestellt |
 | R05 | Ziel belegt | Ordner `02_Kollision` auswählen, Menü **Suchen & Ersetzen**, Suche `Alpha`, Ersetzung `Beta`, **Umbenennen** | `Beta.mkv` existiert bereits: Vorschau zeigt Konflikt, Ausführen deaktiviert, Originale bleiben |
 | R06 | Windows-Reservat | Ordner `03_Reservierter_Name`, Suchen `Alpha` → Ersetzen `CON` | `CON.mkv` wird als reservierter Windows-Dateiname blockiert |
-| R07 | Zu wenig Datenzeilen | Ordner `04_Datenzeilen`, im Menü **Daten → Neue Daten** nur zwei Zeilen eingeben und abschließen; danach `Umbenennen` | 3 Dateien / 2 Zeilen: Vorgang wird vor einer Dateiänderung abgewiesen |
+| R07 | Zu wenig Datenzeilen | Ordner `04_Datenzeilen`, **Daten → Neue Daten**: zwei Zeilen eintragen; **Umbenennen**. Zuerst **Nein**, dann bei einem zweiten Versuch **Ja** wählen und Vorschau abbrechen | Es erscheint eine Ja/Nein-Abfrage mit **Nein** als Voreinstellung; Nein ändert nichts. Nach Ja werden nur zwei Dateipaare gezeigt, die dritte Datei bleibt unangetastet |
 | R08 | Keine Änderungen | Im Ordner `02_Kollision` Suchen & Ersetzen mit einem Text, der in keinem Namen vorkommt | Kein Dateiwechsel; Ausführen bleibt deaktiviert |
 | R09 | Reiner Case-Wechsel | In `03_Reservierter_Name` `Alpha` durch `alpha` ersetzen | Sicherheitsblockade statt riskanter Case-only-Umbenennung |
 | R10 | Wiederholbarkeit | Nach den Tests die Testordner frisch aus dem ZIP entpacken | Ursprüngliche Platzhalterdateien sind wieder vorhanden |
+| R11 | Zu viele Datenzeilen | Ordner `04_Datenzeilen` mit drei Dateien, **Daten → Neue Daten**: vier nichtleere Zeilen eingeben; **Umbenennen** | Nach Ja werden ausschließlich die ersten drei Zeilen verwendet; die vierte wird ignoriert, Vorschau bleibt Pflicht |
 
 **Hinweis:** In der aktuellen Sicherheitsversion werden Dateinamen-Tauschaktionen und reine Änderungen der Groß-/Kleinschreibung bewusst abgelehnt. Eine vollständige transaktionale Dateisystem-Garantie ist bei gleichzeitigen Fremdzugriffen nicht möglich. Bei einem I/O-Fehler versucht das Programm die bereits erfolgten Schritte rückgängig zu machen und meldet unvollständige Wiederherstellung.
+
+## 2a. Anbieterbereinigung und gespeicherte Suchsprache
+
+- **M01:** Die Auswahlliste enthält nur **AniSearch**, **TVmaze**, **TMDB (API-Key)**. AniDB, TheTVDB und Fernsehserien.de sind nicht mehr auswählbar.
+- **M02:** Bei TMDB Englisch als **Suchsprache** einstellen und nach einer Serie suchen; den Dialog schließen und erneut öffnen. Englisch muss wieder vorausgewählt sein (für Suche und Episoden).
+- **M03:** Anschließend zu TVmaze wechseln (nur Englisch), dann zu TMDB zurück. Die zuvor gewählte Sprache darf durch TVmaze nicht überschrieben werden. Ein Wechsel auf AniSearch soll die Sprachvorgabe ebenfalls übernehmen.
+- **M04:** Bei AniSearch eine Suche in Deutsch oder Englisch starten, Dialog schließen und erneut öffnen. Die zuletzt gesuchte Sprache muss erhalten bleiben.
+- **M05:** Benutzer, die früher AniSearch oder TMDB gespeichert hatten, behalten den jeweiligen Anbieter nach einmaliger Migration. Alte entfernte Anbieter werden einmalig auf TVmaze umgestellt.
+- **M06:** Wenn TMDB oder AniSearch im Verlauf eine andere Sprache erhalten, zählt die **zuletzt gestartete Suche**, nicht eine bloße Dropdown-Auswahl ohne Suche.
 
 ## 3. TVmaze – Live-Test ohne API-Key
 
