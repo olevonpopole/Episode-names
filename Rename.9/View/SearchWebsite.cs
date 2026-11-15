@@ -29,11 +29,18 @@ namespace Episode_Names.Anisearch
         private bool suppressApiSelection;
         private readonly IEpisodeMetadataProvider tvMaze = new TvMazeProvider();
 
-        public Anisearch_Table()
+        public Anisearch_Table(string folderPath = null)
         {
             InitializeComponent();
             InitializeTmdbCredentialControls();
             setData();
+            string proposal = FolderSeriesName.Suggest(folderPath);
+            if (!string.IsNullOrWhiteSpace(proposal))
+            {
+                txtSearch.Text = proposal;
+                txtSearch.SelectAll();
+                txtSearch.Focus();
+            }
         }
 
         private void setData()
