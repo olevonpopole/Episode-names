@@ -47,3 +47,21 @@ Außerdem kann die Suchanfrage im Vorschlagsdialog bearbeitet und über **Erneut
 ## Regressionstests
 
 `tests/EpisodeNames.Metadata.Tests/EpisodeFileMatcherChecks.cs` prüft Identitätsextraktion, nicht-positionalen Abgleich, Doppelungen, Specials und unnummerierte Dateien mit Offline-Fixdaten. Für Live-Abfragen und GUI-Übernahme bleiben reale Windows-Tests erforderlich.
+
+
+## Erweiterung: fremdsprachige Anime-Titel und gespeicherte Zielsprache
+
+Die Suche nutzt zunächst den lokal erkannten Ordnernamen. Falls die gefundenen Serienkandidaten keinen plausiblen Namensgleichstand haben, fragt sie den **öffentlichen AniList-GraphQL-Titelindex** ab. Nur **dokumentierte Alternativnamen derselben Anime-Identität** (romaji, englischer/japanischer Titel oder Synonyme) werden benutzt, um TVmaze erneut abzufragen. AniList ist hierbei eine Hilfe bei der **Serienidentifikation**, kein Anbieter übersetzter Episodentitel. Die ergänzten Kandidaten werden **niemals aufgrund des Alias automatisch ausgewählt**; der Nutzer bestätigt die Serie.
+
+Für die Ausgabesprache gelten weiterhin die tatsächlich verfügbaren Quellen: **TMDB** bei vorhandenem API-Key liefert DE/EN mit bereits eingebautem englischem Rückfall, **TVmaze** originalsprachige Episodentitel. Gibt es keinen veröffentlichten Episodentitel in der gewünschten Sprache, erfindet oder maschinenübersetzt die Anwendung ihn nicht. Bei `ja` bietet der vorhandene TMDB-Provider derzeit nur DE-Fallback. Fehlende Sprachabdeckung ist im Vorschlag sichtbar.
+
+AniList-Abfragen sind optional und begrenzt: höchstens eine Suchabfrage pro gestarteter automatischer Suche, anschließend maximal drei alternative TVmaze-Suchanfragen. Offline oder bei API-Fehlern bleibt die bisherige Suche nutzbar.
+
+## Neuer Umbenennungsbaustein und Doppelpunkt
+
+- In **Einstellungen → Format String** wird `%series` als weiterer Formatbaustein angezeigt. Er setzt den lokal aus dem aktuellen Serienordner erkannten Serientitel ein. `%dir` bleibt der rohe Ordnername. Ist kein Titel ermittelbar, wird die Umbenennung sicher blockiert.
+- Beispiel `%series - %pos` mit einem Ordner `Elainas.Reise.S01E01.DTS.1080p.BD.10bit.AV1` und dem Episodentitel `Wanderung` ergibt `Elainas Reise - Wanderung` (vorbehaltlich vorhandener Daten und Formatposition).
+- Der normale ASCII-Doppelpunkt `:` ist in Windows-Dateinamen verboten. Die Anwendung verwendet künftig `∶` (U+2236, mathematisches Verhältniszeichen) anstelle des bisherigen breiten `：` (U+FF1A). Sonderzeichen-Dialog und Umbenennungsersetzung nutzen denselben Wert. Bereits existierende Dateinamen werden nicht automatisch geändert.
+- C#-Tests prüfen den Ersatzausdruck und einen echten Umbenennungsvorgang in einem temporären Testordner auf Windows.
+
+**Manuelle Abnahme:** In Windows den Dialog **Special Characters** öffnen und den Doppelpunkt kopieren, testweise in Editor/Dateinamen prüfen; mit `%series - %pos` eine Testdatei über die sichere Vorschau umbenennen, danach Abbrechen. Alias-Suche mit `Elainas Reise` anstoßen, danach deutsche/englische Titel und Status der Ergebniszeilen prüfen. Kein Release ohne bestätigten GUI-Test.
