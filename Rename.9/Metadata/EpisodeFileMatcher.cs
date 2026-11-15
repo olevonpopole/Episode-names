@@ -61,9 +61,9 @@ namespace Episode_Names.Metadata
             if (se.Count + x.Count > 1)
                 return new EpisodeFileIdentity(fileName, null, null, "Mehrdeutige Staffel-/Folgenangabe");
 
-            Match found = se.Count == 1 ? se[0] : x.Count == 1 ? x[0] : Match.Empty;
+            Match found = se.Count == 1 ? se[0] : x.Count == 1 ? x[0] : null;
             int season, episode;
-            if (found.Success)
+            if (found != null && found.Success)
             {
                 if (!int.TryParse(found.Groups["s"].Value, out season) ||
                     !int.TryParse(found.Groups["e"].Value, out episode) ||
