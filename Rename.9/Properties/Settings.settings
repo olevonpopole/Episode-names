@@ -38,6 +38,12 @@
     <Setting Name="Changelog" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="PreferredMetadataLanguage" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="MetadataProviderSelectionMigrated" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
     <Setting Name="SelectedWebsite" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">4</Value>
     </Setting>
