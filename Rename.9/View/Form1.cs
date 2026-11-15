@@ -476,7 +476,7 @@ namespace Episode_Names
         #region Anisearch Menüpunkt
         private void anisearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Anisearch_Table form = new Anisearch_Table();
+            Anisearch_Table form = new Anisearch_Table(txtPath.Text);
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK){
                 startData_Insert(form.getData());
