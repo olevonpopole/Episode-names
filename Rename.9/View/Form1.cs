@@ -33,6 +33,14 @@ namespace Episode_Names
             var suggestionMenu = new ToolStripMenuItem("Automatische Episoden-Datenvorschläge");
             suggestionMenu.Click += automaticEpisodeSuggestions_Click;
             insertDataToolStripMenuItem.DropDownItems.Insert(0, suggestionMenu);
+            var releaseSettings = new ToolStripMenuItem("GitHub-Releases-Einstellungen");
+            releaseSettings.Click += (s, e) => {
+                using (var dialog = new GitHubReleaseSettingsDialog())
+                    dialog.ShowDialog(this);
+            };
+            menuStrip1.Items.Insert(menuStrip1.Items.IndexOf(updateToolStripMenuItem) + 1,
+                releaseSettings);
+            Shown += (s, e) => Updater.CheckUpdate(true, this);
             if(path != null)
             {
                 txtPath.Text = path;
@@ -49,7 +57,7 @@ namespace Episode_Names
             txtSearch.Text = Properties.Settings.Default.SR_Search;
             pgBar.Value = cmbOption.SelectedIndex = 0;
             txtMessage.Text = "";
-            Updater.CheckUpdate(true, pgBar);
+            // Release check starts asynchronously only after the form is visible.
         }
         #endregion
 
@@ -798,12 +806,12 @@ namespace Episode_Names
 
         private void updateToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Updater.CheckUpdate(false, pgBar);
+            Updater.CheckUpdate(false, this);
         }
 
         private void infoToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("https://github.com/Kirdock/Episode-names/releases");
+            Process.Start("https://github.com/olevonpopole/Episode-names/releases");
         }
 
         private void ordnernamenHolenToolStripMenuItem_Click(object sender, EventArgs e)
