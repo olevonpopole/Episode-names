@@ -15,6 +15,8 @@ namespace Episode_Names.Metadata.Tests
             Check("Show.S01E03.mkv", "Show", "S01E03\tName", "01");
             Check("Show.S00E01.mkv", "Show", "S00E01\tSpecial", "00");
             Fail("Show.S01E03.mkv", "Show", "S02E03\tWrong", "Staffel widerspricht");
+            Fail("Show.S01E03.mkv", "Show", "S01E04\tWrong", "Episodennummer widerspricht");
+            Fail("Show.S01E03.S02E02.mkv", "Show", "S01E03\tWrong", "Mehrdeutige");
             Fail("Show.S02E03.mkv", "Staffel 1", "2\tTitle", "Staffel widerspricht");
             Fail("unnumbered.mkv", "Show", "1\tTitle", "Keine eindeutige Staffelnummer");
             Console.WriteLine("Season number formatting and ambiguity checks passed.");
