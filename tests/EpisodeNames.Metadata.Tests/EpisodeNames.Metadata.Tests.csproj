@@ -34,6 +34,8 @@
     <Compile Include="AnisearchUrlChecks.cs" />
     <Compile Include="FolderSeriesNameChecks.cs" />
     <Compile Include="EpisodeFileMatcherChecks.cs" />
+    <Compile Include="SeasonNumberChecks.cs" />
+    <Compile Include="..\..\Rename.9\Metadata\SeasonNumberResolver.cs"><Link>SeasonNumberResolver.cs</Link></Compile>
     <Compile Include="FilenameCharactersChecks.cs" />
     <Compile Include="AnimeTitleAliasesChecks.cs" />
     <Compile Include="..\..\Rename.9\Metadata\AnimeTitleAliases.cs"><Link>AnimeTitleAliases.cs</Link></Compile>
