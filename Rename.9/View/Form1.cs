@@ -1,6 +1,7 @@
 ﻿using Episode_Names.Anisearch;
 using Episode_Names.Exceptions;
 using Episode_Names.Helper;
+using Episode_Names.Metadata;
 using Episode_Names.Renaming;
 using Episode_Names.View;
 using System;
@@ -29,6 +30,9 @@ namespace Episode_Names
         {
             InitializeComponent();
             setData();
+            var suggestionMenu = new ToolStripMenuItem("Automatische Episoden-Datenvorschläge");
+            suggestionMenu.Click += automaticEpisodeSuggestions_Click;
+            insertDataToolStripMenuItem.DropDownItems.Insert(0, suggestionMenu);
             if(path != null)
             {
                 txtPath.Text = path;
@@ -472,6 +476,41 @@ namespace Episode_Names
         #endregion
 
 
+
+        private void automaticEpisodeSuggestions_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string path = txtPath.Text;
+                if (!Directory.Exists(path))
+                {
+                    MessageBox.Show(this, "Bitte zuerst einen gültigen Serienordner auswählen.",
+                        "Automatische Datenvorschläge", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // The existing rename preview works on every visible file in this
+                // order. Never suggest a subset that could shift positional pairing.
+                List<FileInfo> sorted = GetVisibleFiles();
+                if (sorted.Count == 0)
+                {
+                    MessageBox.Show(this, "Der Ordner enthält keine Dateien.",
+                        "Automatische Datenvorschläge", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                using (var dialog = new AutomaticEpisodeSuggestionsDialog(path,
+                    sorted.Select(file => file.Name).ToList()))
+                {
+                    if (dialog.ShowDialog(this) == DialogResult.OK && dialog.AcceptedRows != null)
+                        startData_Insert(dialog.AcceptedRows);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Automatische Vorschläge konnten nicht vorbereitet werden: " +
+                    ex.Message, "Episode Names", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
 
         #region Anisearch Menüpunkt
         private void anisearchToolStripMenuItem_Click(object sender, EventArgs e)
