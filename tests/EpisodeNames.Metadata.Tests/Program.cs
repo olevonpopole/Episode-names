@@ -21,6 +21,7 @@ namespace Episode_Names.Metadata.Tests
                 MetadataRowsChecks.Run();
                 MetadataSelectionChecks.Run();
                 AnisearchUrlChecks.Run();
+                FolderSeriesNameChecks.Run();
                 Console.WriteLine("TVmaze and TMDB provider checks passed.");
                 return 0;
             }
