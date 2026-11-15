@@ -14,12 +14,14 @@ namespace Episode_Names.Helper
         internal static string Number = "n";
         internal static string Position = "pos";
         internal static string Directory = "dir";
+        internal static string SeriesTitle = "series";
         internal static readonly char Separator = '%';
         internal static List<string> FormatesWithoutNumeration = new List<string>
         {
                 Number,
                 Position,
-                Directory
+                Directory,
+                SeriesTitle
         };
 
         private static List<string> GetFormates()
