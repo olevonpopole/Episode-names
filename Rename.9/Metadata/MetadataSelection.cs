@@ -69,7 +69,10 @@ namespace Episode_Names.Metadata
             string requested = CanonicalLanguage(requestedLanguage);
             string actual = string.IsNullOrWhiteSpace(actualLanguage) ? "und" :
                 actualLanguage.Trim().ToLowerInvariant();
-            if (actual == requested) return actual;
+            if (actual == requested ||
+                (actual.StartsWith(requested + "-", StringComparison.Ordinal) &&
+                 actual != "ja-latn"))
+                return actual;
             if (actual == "und") return "und (Original/unbekannt)";
             return actual + " (Fallback für " + requested + ")";
         }
