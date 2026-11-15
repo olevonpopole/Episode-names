@@ -29,6 +29,14 @@ namespace Episode_Names.Metadata.Tests
             // Words in titles are not release metadata; preserve punctuation.
             Check(@"C:\Anime\The English [2022]", "The English");
             Check(@"C:\Anime\Sub.Mariner", "Sub Mariner");
+            // Real NTFS release: unseparated episode number, horizontal resolution
+            // and x264/h264 tag, followed by CRC32.
+            Check(@"X:\Airing Anime\[NTFS] Kemono no Souja Erin 01 [1280x720 h264] [47C8760B]", "Kemono no Souja Erin");
+            Check(@"C:\Anime\[NTFS] Kemono no Souja Erin 02 [1920x1080 x265][A1B2C3D4]", "Kemono no Souja Erin");
+            // Do not remove numbers from a genuine title without release evidence.
+            Check(@"C:\Anime\Area 51", "Area 51");
+            Check(@"C:\Anime\86", "86");
+
 
             Check(@"C:\", "");
             Check(null, "");
