@@ -103,6 +103,8 @@
     <Compile Include="Metadata\MetadataSelection.cs" />
     <Compile Include="Metadata\AnisearchUrl.cs" />
     <Compile Include="Metadata\FolderSeriesName.cs" />
+    <Compile Include="Metadata\EpisodeFileMatcher.cs" />
+    <Compile Include="View\AutomaticEpisodeSuggestionsDialog.cs" />
     <Compile Include="Renaming\RenamePlanner.cs" />
     <Compile Include="Renaming\MetadataRows.cs" />
     <Compile Include="Renaming\RenameCountPolicy.cs" />
