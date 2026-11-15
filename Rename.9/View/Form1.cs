@@ -92,6 +92,13 @@ namespace Episode_Names
 
             try
             {
+                if (data.Any(string.IsNullOrWhiteSpace))
+                {
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        "Die Daten enthalten eine leere Zeile. Bitte diese vor der Umbenennung entfernen.");
+                    return;
+                }
+
                 List<FileInfo> files = GetVisibleFiles();
                 if (files.Count != data.Count)
                 {
@@ -378,7 +385,7 @@ namespace Episode_Names
             Data_Insert form = new Data_Insert();
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK)
-                data = string.IsNullOrWhiteSpace(form.getData()) ? null : form.getData().Split('\n').ToList();
+                data = MetadataRows.Parse(form.getData());
 
         }
         #endregion
@@ -404,7 +411,7 @@ namespace Episode_Names
             DialogResult result = form.ShowDialog();
             if (result == DialogResult.OK)
             {
-                this.data = form.getData().Split('\n').ToList();
+                this.data = MetadataRows.Parse(form.getData());
             }
 
         }
