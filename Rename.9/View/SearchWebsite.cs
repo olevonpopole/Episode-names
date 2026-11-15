@@ -186,23 +186,7 @@ namespace Episode_Names.Anisearch
 
         private bool checkUrlAnisearch(string language, string inputUrl, out string url)
         {
-            url = "";
-            Uri uri;
-            if (!Uri.TryCreate(inputUrl, UriKind.Absolute, out uri) ||
-                uri.Scheme != Uri.UriSchemeHttps ||
-                !(uri.Host.Equals("www.anisearch.de", StringComparison.OrdinalIgnoreCase) ||
-                  uri.Host.Equals("anisearch.de", StringComparison.OrdinalIgnoreCase) ||
-                  uri.Host.Equals("www.anisearch.com", StringComparison.OrdinalIgnoreCase) ||
-                  uri.Host.Equals("anisearch.com", StringComparison.OrdinalIgnoreCase)))
-                return false;
-            string[] parts = uri.AbsolutePath.Split(new[] { '/' },
-                StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 3 || !parts[0].Equals("anime", StringComparison.OrdinalIgnoreCase))
-                return false;
-            url = getDomainEpisodes(language) + "/anime/" +
-                Uri.EscapeDataString(Uri.UnescapeDataString(parts[1])) + "/" +
-                Uri.EscapeDataString(Uri.UnescapeDataString(parts[2])) + "/episodes";
-            return true;
+            return AnisearchUrl.TryEpisodesUrl(inputUrl, language, out url);
         }
 
         private void txtUrl_KeyDown(object sender, KeyEventArgs e)
@@ -396,7 +380,9 @@ namespace Episode_Names.Anisearch
                 {
                     string text = WebUtility.HtmlDecode(row.SelectNodes("th")[0].SelectNodes("a")[0].InnerText);
                     string nurl = WebUtility.HtmlDecode(row.SelectNodes("th")[0].SelectNodes("a[@href]")[0].Attributes["href"].Value);
-                    resultUrl.Add(new KeyValuePair<string, string>($"{domain}/{nurl}", text));
+                    string resolved;
+                    if (AnisearchUrl.TryResolveSearchResult(domain, nurl, out resolved))
+                        resultUrl.Add(new KeyValuePair<string, string>(resolved, text));
                 }
                 setReceivedUrls(resultUrl);
             }
