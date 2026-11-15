@@ -122,7 +122,12 @@ namespace Episode_Names.Metadata
             title = ""; actual = "und";
             if (titles == null) return;
             string requested = MetadataSelection.CanonicalLanguage(language);
-            var priorities = new[] { requested, "en", "ja", "x-jat" }
+            var languageVariants = requested == "pt"
+                ? new[] { "pt", "pt-BR" } : requested == "zh"
+                ? new[] { "zh", "zh-Hans", "zh-Hant" }
+                : new[] { requested };
+            var priorities = languageVariants.Concat(
+                new[] { "en", "ja", "x-jat" })
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             foreach (string code in priorities)
             {
