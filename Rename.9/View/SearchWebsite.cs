@@ -36,7 +36,6 @@ namespace Episode_Names.Anisearch
             setData();
         }
 
-        #region Standardwerte und gespeicherte Daten setzen
         private void setData()
         {
             TopMost = Properties.Settings.Default.Foreground;
