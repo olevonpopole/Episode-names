@@ -179,10 +179,7 @@ namespace Episode_Names.Anisearch
             this.cmbWebsite.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbWebsite.FormattingEnabled = true;
             this.cmbWebsite.Items.AddRange(new object[] {
-            "aniDB",
-            "Anisearch",
-            "Fernsehserien.de",
-            "TVDB",
+            "AniSearch",
             "TVmaze",
             "TMDB (API-Key)"});
             this.cmbWebsite.Location = new System.Drawing.Point(53, 6);
