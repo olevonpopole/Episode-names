@@ -27,6 +27,11 @@ namespace Episode_Names
                 Text = "Serientitel:       %series"
             };
             txtFormat.Parent.Controls.Add(seriesHelp);
+            var seasonHelp = new System.Windows.Forms.Label {
+                AutoSize = true, Location = new System.Drawing.Point(11, 218),
+                Text = "Staffelnummer:  %season  (z. B. 02)"
+            };
+            txtFormat.Parent.Controls.Add(seasonHelp);
         }
 
         #region Vordergrund (TopMost) in MainForm setzen, wenn geändert
