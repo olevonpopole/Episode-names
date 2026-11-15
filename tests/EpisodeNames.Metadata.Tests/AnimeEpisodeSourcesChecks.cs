@@ -103,6 +103,16 @@ namespace Episode_Names.Metadata.Tests
             }, "en", out text, out language);
             Assert(text == "Romaji only" && language == "ja-Latn",
                 "romanized Japanese accurately labeled");
+            AniZipProvider.ChooseTitle(new Dictionary<string, string> {
+                { "pt-BR", "Título brasileiro" }, { "en", "English" }
+            }, "pt", out text, out language);
+            Assert(text == "Título brasileiro" && language == "pt-BR",
+                "regional Portuguese title selected ahead of English");
+            AniZipProvider.ChooseTitle(new Dictionary<string, string> {
+                { "zh-Hans", "简体中文" }, { "en", "English" }
+            }, "zh", out text, out language);
+            Assert(text == "简体中文" && language == "zh-Hans",
+                "Chinese script variant selected ahead of English");
 
             Assert(MetadataSourcePriority.Rank("tmdb", "de") >
                 MetadataSourcePriority.Rank("anizip", "de") &&
