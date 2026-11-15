@@ -63,6 +63,25 @@ namespace Episode_Names.Metadata.Tests
             Assert(MetadataSelection.DescribeResultLanguage("de", null) ==
                 "und (Original/unbekannt)", "Missing episode language never claimed translated");
 
+            Assert(MetadataSelection.SupportedLanguages().Count == 11,
+                "Eleven multilingual choices are available");
+            Assert(MetadataSelection.CanonicalLanguage(" FR ") == "fr" &&
+                MetadataSelection.CanonicalLanguage("es") == "es" &&
+                MetadataSelection.CanonicalLanguage("zh") == "zh" &&
+                MetadataSelection.CanonicalLanguage("ko") == "ko" &&
+                MetadataSelection.CanonicalLanguage("tr") == "tr",
+                "Non-German language preferences retain their canonical code");
+            Assert(TmdbProvider.LocaleForLanguage("ja") == "ja-JP" &&
+                TmdbProvider.LocaleForLanguage("fr") == "fr-FR" &&
+                TmdbProvider.LocaleForLanguage("pt") == "pt-PT" &&
+                TmdbProvider.LocaleForLanguage("pl") == "pl-PL" &&
+                TmdbProvider.LocaleForLanguage("ko") == "ko-KR" &&
+                TmdbProvider.LocaleForLanguage("zh") == "zh-CN" &&
+                TmdbProvider.LocaleForLanguage("tr") == "tr-TR" &&
+                TmdbProvider.LocaleForLanguage("de") == "de-DE" &&
+                TmdbProvider.LocaleForLanguage("en") == "en-US",
+                "TMDB locale mapping is stable and no longer German-only");
+
             var fewerRows = new RenameCountDecision(3, 2);
             Assert(fewerRows.RequiresConfirmation && fewerRows.CanPreview &&
                 fewerRows.PairCount == 2 && fewerRows.UntouchedFiles == 1 &&
