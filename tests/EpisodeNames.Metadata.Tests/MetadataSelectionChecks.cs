@@ -52,6 +52,17 @@ namespace Episode_Names.Metadata.Tests
             Assert(MetadataSelection.FindLanguageIndex(tvMazeLanguages, "de") == 0,
                 "TVmaze forces English without overwriting the stored preference");
 
+            Assert(MetadataSelection.DescribeResultLanguage("de", "de") == "de",
+                "German result has no fallback badge");
+            Assert(MetadataSelection.DescribeResultLanguage("de", "en") ==
+                "en (Fallback für de)", "English fallback clearly marked for German");
+            Assert(MetadataSelection.DescribeResultLanguage("ja", "en") ==
+                "en (Fallback für ja)", "Japanese selection does not invent translations");
+            Assert(MetadataSelection.DescribeResultLanguage("en", "und") ==
+                "und (Original/unbekannt)", "TVmaze source language remains unknown");
+            Assert(MetadataSelection.DescribeResultLanguage("de", null) ==
+                "und (Original/unbekannt)", "Missing episode language never claimed translated");
+
             var fewerRows = new RenameCountDecision(3, 2);
             Assert(fewerRows.RequiresConfirmation && fewerRows.CanPreview &&
                 fewerRows.PairCount == 2 && fewerRows.UntouchedFiles == 1 &&
