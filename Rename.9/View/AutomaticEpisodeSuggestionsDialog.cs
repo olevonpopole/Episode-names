@@ -208,6 +208,7 @@ namespace Episode_Names.View
                 " | TMDB lokalisiert mit Key; TVmaze/Jikan original, AniZip mehrsprachig.";
             string errors = tmdbError;
             int rawResults = 0;
+            bool jikanWorking = true;
             foreach (IEpisodeMetadataProvider provider in providers)
             {
                 try
@@ -244,8 +245,12 @@ namespace Episode_Names.View
                 catch (OperationCanceledException) { return; }
                 catch (Exception ex)
                 {
-                    // No credentials or HTTP endpoints in the visible error string.
-                    errors += provider.DisplayName + ": " + ex.GetType().Name + ". ";
+                    // TMDB exception internals are redacted: never show an API key.
+                    if (provider.Id == JikanProvider.ProviderKey) jikanWorking = false;
+                    errors += provider.DisplayName + ": " +
+                        (provider.Id == JikanProvider.ProviderKey &&
+                         ex is MetadataProviderException ? ex.Message :
+                         ex.GetType().Name) + ". ";
                 }
             }
             // When a translated/localized folder title is not indexed by
@@ -258,22 +263,43 @@ namespace Episode_Names.View
                 {
                     IReadOnlyList<string> aliases = await new AnimeTitleAliases()
                         .FindAsync(searchTerm, cancellation.Token);
-                    IEpisodeMetadataProvider tvmaze = providers.First(p => p.Id == "tvmaze");
+                    var aliasSources = providers.Where(p => p.Id == "tvmaze" ||
+                        (jikanWorking && p.Id == JikanProvider.ProviderKey)).ToList();
                     foreach (string alias in aliases.Take(3))
                     {
                         cancellation.Token.ThrowIfCancellationRequested();
-                        IReadOnlyList<SeriesMatch> suggestions = await tvmaze.SearchSeriesAsync(
-                            alias, cancellation.Token);
-                        if (IsDisposed || cancellation.IsCancellationRequested) return;
-                        rawResults += suggestions.Count;
-                        foreach (SeriesMatch suggestion in suggestions.Where(x =>
-                            !string.IsNullOrWhiteSpace(x.Name)))
+                        foreach (IEpisodeMetadataProvider source in aliasSources)
                         {
-                            if (!candidates.Any(x => x.Provider.Id == tvmaze.Id &&
-                                    x.Series.Id == suggestion.Id))
-                                candidates.Add(new Candidate {
-                                    Provider = tvmaze, Series = suggestion, Rank = 15
-                                });
+                            try
+                            {
+                                IReadOnlyList<SeriesMatch> suggestions =
+                                    await source.SearchSeriesAsync(alias, cancellation.Token);
+                                if (IsDisposed || cancellation.IsCancellationRequested) return;
+                                rawResults += suggestions.Count;
+                                foreach (SeriesMatch match in suggestions.Where(x =>
+                                    !string.IsNullOrWhiteSpace(x.Name)))
+                                {
+                                    if (!candidates.Any(x => x.Provider.Id == source.Id &&
+                                        x.Series.Id == match.Id))
+                                        candidates.Add(new Candidate {
+                                            Provider = source, Series = match, Rank = 15
+                                        });
+                                }
+                                if (source.Id == JikanProvider.ProviderKey)
+                                    foreach (SeriesMatch match in AniZipProvider.FromMalSearch(suggestions))
+                                    {
+                                        if (!candidates.Any(x => x.Provider.Id == aniZip.Id &&
+                                            x.Series.Id == match.Id))
+                                            candidates.Add(new Candidate {
+                                                Provider = aniZip, Series = match, Rank = 15
+                                            });
+                                    }
+                            }
+                            catch (OperationCanceledException) { return; }
+                            catch (Exception)
+                            {
+                                errors += source.DisplayName + ": Alias-Suche fehlgeschlagen. ";
+                            }
                         }
                     }
                 }
