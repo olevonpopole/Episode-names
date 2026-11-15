@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,130 +10,207 @@ using System.Windows.Forms;
 
 namespace Episode_Names.Helper
 {
-    class Updater
+    /// <summary>
+    /// Safe, opt-in updater from GitHub Releases (public or private). Never
+    /// writes into the running installation until a verified archive is staged.
+    /// </summary>
+    internal static class Updater
     {
-        private readonly static string Repository = "https://github.com/Kirdock/Episode-names/releases";
-        private readonly static string Tags = $"{Repository}/latest";
-        private readonly static string FileNameWithoutExtension = "Anwendung";
-        private readonly static string FileName = FileNameWithoutExtension + ".zip";
-        private readonly static string Download = Repository + "/download/{0}/" + FileName;
+        private static bool checking;
 
-        internal static void CheckUpdate(bool Prompt, ProgressBar progressBar)
+        internal static async void CheckUpdate(bool automatic, Form owner)
         {
-            // The portable GitHub test package sets this flag in its own .exe.config.
-            // Never let an old release updater replace an explicitly selected test build.
-            if (string.Equals(System.Configuration.ConfigurationManager.AppSettings["PortableTestBuild"],
-                "true", StringComparison.OrdinalIgnoreCase))
-                return;
-
-            if (!Prompt || !Properties.Settings.Default.UpdateDialogShowed)
+            if (checking || owner == null || owner.IsDisposed) return;
+            bool testBuild = string.Equals(
+                ConfigurationManager.AppSettings["PortableTestBuild"], "true",
+                StringComparison.OrdinalIgnoreCase);
+            if (automatic && testBuild) return;
+            checking = true;
+            try
             {
-                new Thread(() =>
+                string repository = Properties.Settings.Default.GitHubUpdateRepository;
+                string token = GitHubUpdateCredentialStore.Unprotect(
+                    Properties.Settings.Default.GitHubUpdateToken);
+                var client = new GitHubReleaseClient();
+                GitHubReleaseInfo release;
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12)))
+                    release = await client.LatestAsync(repository, token, timeout.Token);
+                if (owner.IsDisposed) return;
+
+                Version installed = Assembly.GetExecutingAssembly().GetName().Version;
+                if (!ReleasePackageValidator.IsNewer(release.Tag, installed))
                 {
+                    if (!automatic)
+                        MessageBox.Show(owner,
+                            "Kein neueres stabiles Release verfügbar. Aktuelle Version: " +
+                            installed + ".",
+                            "Episode Names – GitHub Releases", MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    return;
+                }
+                if (testBuild)
+                {
+                    MessageBox.Show(owner, "Neues Release: " + release.Tag +
+                        "\nDieses portable TESTBUILD installiert absichtlich keine Updates. " +
+                        "Die Release-Prüfung und private GitHub-Verbindung wurden ausgeführt.",
+                        "Testbuild – Updateprüfung", MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (MessageBox.Show(owner,
+                    "Neues GitHub Release " + release.Tag + " gefunden.\n" +
+                    "Repository: " + repository + "\nAsset: " + release.AssetName + "\n" +
+                    "ZIP wird heruntergeladen, per SHA-256 geprüft und erst nach Ihrer " +
+                    "Bestätigung bei geschlossenem Programm eingespielt. " +
+                    "Vorhandene Dateien werden für ein Rollback gesichert.\n" +
+                    "Update vorbereiten?",
+                    "Episode Names – Update verfügbar", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) !=
+                    DialogResult.Yes)
+                    return;
+
+                if (string.IsNullOrWhiteSpace(release.Sha256))
+                    throw new InvalidDataException(
+                        "Das Release-Asset hat keinen SHA-256-Digest auf GitHub. " +
+                        "Aus Sicherheitsgründen findet keine automatische Installation statt.");
+
+                string root = Path.Combine(Path.GetTempPath(),
+                    "EpisodeNames-Release-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(root);
+                try
+                {
+                    string zip = Path.Combine(root, "release.zip");
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
+                        await client.DownloadAsync(repository, release.AssetId, token, zip,
+                            timeout.Token);
+                    ReleasePackageValidator.VerifySha256(zip, release.Sha256);
+                    string stage = Path.Combine(root, "new");
+                    ReleasePackageValidator.ExtractToStaging(zip, stage);
+                    if (owner.IsDisposed) return;
+
+                    string destination = Path.GetDirectoryName(
+                        Assembly.GetExecutingAssembly().Location);
+                    string probe = Path.Combine(destination,
+                        ".episode-names-update-probe-" + Guid.NewGuid().ToString("N"));
                     try
                     {
-                        WebRequest request = WebRequest.Create(Tags);
-                        WebResponse response = request.GetResponse();
-
-                        string version = response.ResponseUri.ToString().Split(new char[] { '/' }).Last();
-                        System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                        FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-
-                        if (version != fvi.FileVersion.Substring(0, version.Length))
-                        {
-                            if (Prompt)
-                            {
-                                DialogResult result = MessageHandler.MessagesYesNoCancel(MessageBoxIcon.Information, "Eine neue Version steht zur Verfügung. Möchten Sie sie runterladen?");
-                                if (result == DialogResult.Yes)
-                                {
-                                    SetUpdateShowed(false);
-                                    DownloadFile(version, progressBar);
-                                }
-                                else
-                                {
-                                    SetUpdateShowed(true);
-                                }
-                            }
-                            else
-                            {
-                                DownloadFile(version, progressBar);
-                            }
-                        }
-                        else if (!Prompt)
-                        {
-                            MessageHandler.MessagesOK(MessageBoxIcon.Information, "Sie besitzen bereits die aktuellste Version");
-                        }
+                        File.WriteAllText(probe, "write access test");
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        ErrorHelper.LogMessage(ex);
+                        if (File.Exists(probe)) File.Delete(probe);
                     }
-                }).Start();
-            }
-        }
+                    if (MessageBox.Show(owner, "Update " + release.Tag +
+                        " wurde heruntergeladen und geprüft.\n" +
+                        "Episode Names jetzt schließen, Sicherung erstellen und " +
+                        "Update installieren?\n\nFalls das Starten des Installers " +
+                        "durch Windows-Richtlinien blockiert ist, bleibt das geprüfte " +
+                        "Paket hier erhalten:\n" + stage,
+                        "Geprüftes Release installieren",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                        return;
 
-        private static void SetUpdateShowed(bool status)
-        {
-            Properties.Settings.Default.UpdateDialogShowed = status;
-            Properties.Settings.Default.Save();
-        }
-
-        private static void DownloadFile(string version, ProgressBar progressBar)
-        {
-            progressBar.Invoke(new MethodInvoker(() =>
-            {
-                progressBar.Style = ProgressBarStyle.Marquee;
-            }));
-            using (var client = new WebClient())
-            {
-                client.DownloadFile(string.Format(Download, version), FileName);
-
-                string path = GetCurrentDirectory();
-                string ZipPath = Path.Combine(path, FileName);
-                ZipArchive archive = ZipFile.OpenRead(ZipPath);
-
-                foreach (ZipArchiveEntry file in archive.Entries)
-                {
-                    string completeFileName = Path.Combine(path, file.FullName);
-                    if (file.Name == "")
-                    {// Assuming Empty for Directory
-                        Directory.CreateDirectory(Path.GetDirectoryName(completeFileName));
-                        continue;
-                    }
-                    file.ExtractToFile(completeFileName, true);
+                    string script = Path.Combine(root, "apply-update.ps1");
+                    File.WriteAllText(script,
+                        BuildInstallScript(stage, destination, Process.GetCurrentProcess().Id),
+                        new UTF8Encoding(false));
+                    var process = new Process {
+                        StartInfo = new ProcessStartInfo {
+                            FileName = "powershell.exe",
+                            Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" +
+                                script + "\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            WorkingDirectory = root
+                        }
+                    };
+                    process.Start();
+                    Application.Exit();
                 }
-                archive.Dispose();
-                File.Delete(ZipPath);
-                RestartApp();
-
+                catch
+                {
+                    // Leave a validated/staged release untouched for troubleshooting;
+                    // failed signature checks never modify the running app.
+                    throw;
+                }
             }
+            catch (OperationCanceledException)
+            {
+                if (!automatic && !owner.IsDisposed)
+                    MessageBox.Show(owner, "GitHub-Updateprüfung hat das Zeitlimit erreicht.",
+                        "Updateprüfung", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                if (!automatic && !owner.IsDisposed)
+                    MessageBox.Show(owner, "GitHub-Releases-Update nicht verfügbar:\n" +
+                        ex.Message +
+                        "\n\nBei privatem Repo Lesetoken unter Update-Einstellungen prüfen.",
+                        "Updateprüfung", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // No token or HTTP authorization headers are logged or displayed.
+            }
+            finally { checking = false; }
         }
 
-        internal static string GetCurrentDirectory()
+        private static string B64(string value)
         {
-            return Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
         }
 
-        private static void RestartApp()
+        internal static string BuildInstallScript(string staged, string destination, int oldPid)
         {
-            string directory = GetCurrentDirectory();
-            string BatchPath = Path.Combine(directory, "Updater.bat");
-            string ZipFolder = Path.Combine(directory, FileNameWithoutExtension);
-            StreamWriter writer = new StreamWriter(BatchPath);
-
-            writer.WriteLine($"move \"{Path.Combine(ZipFolder, "*")}\" \"{directory}\"");
-            writer.WriteLine($"start \"\" \"{Path.Combine(directory, AppDomain.CurrentDomain.FriendlyName)}\"");
-            writer.WriteLine($"rmdir \"{ZipFolder}\"");
-            writer.WriteLine($"del /Q \"{BatchPath}\"");
-
-            writer.Close();
-            Process process = new Process();
-            process.StartInfo.FileName = BatchPath;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            process.Start();
-            Application.Exit();
-
+            // All paths are Base64 literals, never embedded unescaped in script
+            // commands. The script is local and only launched by a user consent.
+            string header =
+                "$ErrorActionPreference = 'Stop'\r\n" +
+                "$stage = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" +
+                    B64(staged) + "'))\r\n" +
+                "$target = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" +
+                    B64(destination) + "'))\r\n" +
+                "$oldPid = " + oldPid + "\r\n";
+            return header + @"
+$root = Split-Path -Parent $stage
+$backup = Join-Path $root 'backup'
+$changes = New-Object System.Collections.Generic.List[string]
+try {
+    for ($i=0; $i -lt 30; $i++) {
+        if (-not (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Seconds 1
+    }
+    if (Get-Process -Id $oldPid -ErrorAction SilentlyContinue) {
+        throw 'Das alte Programm wurde nicht geschlossen.'
+    }
+    New-Item -ItemType Directory -Path $backup -Force | Out-Null
+    foreach ($file in (Get-ChildItem -LiteralPath $stage -File -Recurse)) {
+        $relative = $file.FullName.Substring($stage.Length).TrimStart([char]'\')
+        $dest = Join-Path $target $relative
+        $backupFile = Join-Path $backup $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
+        $changes.Add($relative)
+        if (Test-Path -LiteralPath $dest) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $backupFile) -Force | Out-Null
+            Copy-Item -LiteralPath $dest -Destination $backupFile -Force
+        }
+        Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
+    }
+    Start-Process -FilePath (Join-Path $target 'Episode-Names.exe')
+}
+catch {
+    foreach ($relative in $changes) {
+        $dest = Join-Path $target $relative
+        $backupFile = Join-Path $backup $relative
+        if (Test-Path -LiteralPath $backupFile) {
+            Copy-Item -LiteralPath $backupFile -Destination $dest -Force
+        }
+        elseif (Test-Path -LiteralPath $dest) {
+            Remove-Item -LiteralPath $dest -Force
+        }
+    }
+    Set-Content -LiteralPath (Join-Path $root 'update-error.txt') -Value $_.Exception.Message
+}
+";
         }
     }
 }
