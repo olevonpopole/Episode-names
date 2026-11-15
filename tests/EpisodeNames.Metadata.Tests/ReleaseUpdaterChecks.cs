@@ -79,7 +79,7 @@ namespace Episode_Names.Metadata.Tests
                 Reject(() => ReleasePackageValidator.ExtractToStaging(bad,
                     Path.Combine(folder, "missingexe")), "missing app payload");
 
-                CheckPrivateGithubAsync().GetAwaiter().GetResult();
+                CheckPrivateGithubAsync(good, folder).GetAwaiter().GetResult();
                 string protectedToken = GitHubUpdateCredentialStore.Protect("fake-fixture-token");
                 Assert(!protectedToken.Contains("fake-fixture-token") &&
                     GitHubUpdateCredentialStore.Unprotect(protectedToken) ==
@@ -90,20 +90,31 @@ namespace Episode_Names.Metadata.Tests
             Console.WriteLine("GitHub release authentication, validation, ZIP safety and favorites checks passed.");
         }
 
-        private static async Task CheckPrivateGithubAsync()
+        private static async Task CheckPrivateGithubAsync(string fixtureZip, string folder)
         {
-            const string digest = "sha256:0123456789012345678901234567890123456789012345678901234567890123";
+            byte[] payload = File.ReadAllBytes(fixtureZip);
+            string hash;
+            using (var sha = SHA256.Create())
+                hash = BitConverter.ToString(sha.ComputeHash(payload)).Replace("-", "");
+            string digest = "sha256:" + hash;
             string fixture = "{\"tag_name\":\"v2.0.0\",\"draft\":false,\"prerelease\":false," +
                 "\"html_url\":\"https://github.com/olevonpopole/Episode-names/releases/tag/v2.0.0\"," +
                 "\"assets\":[{\"id\":42,\"name\":\"EpisodeNames-Windows-Portable.zip\"," +
                 "\"size\":100,\"digest\":\"" + digest + "\"}]}";
-            var fake = new FakeHandler(fixture);
-            var release = await new GitHubReleaseClient(new HttpClient(fake))
-                .LatestAsync("olevonpopole/Episode-names", "not-a-real-token",
-                    CancellationToken.None);
+            var fake = new FakeHandler(fixture, payload);
+            var provider = new GitHubReleaseClient(new HttpClient(fake));
+            var release = await provider.LatestAsync(
+                "olevonpopole/Episode-names", "not-a-real-token",
+                CancellationToken.None);
             Assert(release.Tag == "v2.0.0" && release.AssetId == 42 &&
                 release.Sha256 == digest.Substring(7), "stable release digest parsed");
-            Assert(fake.CheckedBearer, "private repo token is sent only to GitHub API");
+            Assert(fake.CheckedBearer, "private repo token sent to GitHub API");
+            string downloaded = Path.Combine(folder, "github-download.zip");
+            await provider.DownloadAsync("olevonpopole/Episode-names", release.AssetId,
+                "not-a-real-token", downloaded, CancellationToken.None);
+            ReleasePackageValidator.VerifySha256(downloaded, release.Sha256);
+            Assert(fake.AssetFetched && File.ReadAllBytes(downloaded).SequenceEqual(payload),
+                "authenticated private GitHub release ZIP asset downloaded intact");
         }
 
         private static void Write(ZipArchive archive, string name, string value)
@@ -129,8 +140,14 @@ namespace Episode_Names.Metadata.Tests
         private sealed class FakeHandler : HttpMessageHandler
         {
             private readonly string response;
+            private readonly byte[] payload;
             internal bool CheckedBearer;
-            internal FakeHandler(string response) { this.response = response; }
+            internal bool AssetFetched;
+            internal FakeHandler(string response, byte[] payload)
+            {
+                this.response = response;
+                this.payload = payload;
+            }
             protected override Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage request, CancellationToken cancellationToken)
             {
@@ -138,6 +155,13 @@ namespace Episode_Names.Metadata.Tests
                     request.Headers.Authorization != null &&
                     request.Headers.Authorization.Scheme == "Bearer" &&
                     request.Headers.Authorization.Parameter == "not-a-real-token";
+                if (request.RequestUri.AbsolutePath.EndsWith("/releases/assets/42"))
+                {
+                    AssetFetched = true;
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
+                        Content = new ByteArrayContent(payload)
+                    });
+                }
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) {
                     Content = new StringContent(response, Encoding.UTF8, "application/json")
                 });
