@@ -35,7 +35,7 @@ namespace Episode_Names.Metadata.Tests
             Check(@"C:\Anime\[NTFS] Kemono no Souja Erin 02 [1920x1080 x265][A1B2C3D4]", "Kemono no Souja Erin");
             // Do not remove numbers from a genuine title without release evidence.
             Check(@"C:\Anime\Area 51", "Area 51");
-            Check(@"C:\Anime\86", "86");
+            Check(@"C:\Anime\86 Eighty Six", "86 Eighty Six");
 
 
             Check(@"C:\", "");
