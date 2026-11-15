@@ -21,11 +21,17 @@ Insert Position: fügt bei der angegebenen Position den angegebenen Text ein
 Delete Positions: löscht die Zeichen auf den angegebenen Positionen (die Positionen schreibt man daneben in das Textfeld). Positionen werden mit ";" getrennt und es kann auch von-bis angegeben werden. Also z.B. "1,5,7-10", dann werden die Zeichen auf den Positionen 1,5,7,8,9,10 gelöscht.
 
 
+## Metadatenquellen und Sprache (Entwicklungsbranch)
+
+In der Seriensuche stehen nur noch **AniSearch**, **TVmaze** (ohne API-Key) und **TMDB** (optional mit eigenem API-Key) zur Auswahl. Die veralteten AniDB-, TheTVDB- und Fernsehserien.de-Suchoptionen und ihre Abruflogik wurden entfernt. Bestehende gespeicherte Anbieterpositionen werden beim ersten Start dieser Version automatisch migriert: AniSearch bleibt AniSearch, TVmaze und TMDB bleiben erhalten, entfernte Anbieter werden auf TVmaze umgestellt.
+
+Bei AniSearch und TMDB wird die Sprache **bei einer neuen Suche** als Sprachcode (Deutsch, Englisch bzw. bei AniSearch auch Japanisch) im Benutzerprofil gespeichert. Beim nächsten Öffnen wird diese Sprache für Suche und Episodentitel wieder vorausgewählt. TVmaze liefert nur englische/originale Titel und überschreibt die gespeicherte Präferenz nicht.
+
 ## Sichere Umbenennungsvorschau (Entwicklungsbranch)
 
 **Vor jeder Umbenennung erscheint jetzt eine Vorschau:** Das gilt für Daten-/Episodentitel, Nummerierung, Position einfügen/löschen, Suchen/Ersetzen und die Wiederherstellung. Für jede Datei zeigt sie den bisherigen Namen, den geplanten neuen Namen und den Prüfstatus. Erst der Klick auf **Änderungen ausführen** startet die Dateioperationen.
 
-Der gemeinsame Planer blockiert **vor der ersten Änderung**: ungültige Windows-Dateinamen (einschließlich reservierter Namen wie CON/LPT1, abschließender Punkte/Leerzeichen und überlanger Pfade), doppelte Quell- und Zielzuordnungen, auch nur durch Groß-/Kleinschreibung unterschiedene Zielnamen, bestehende Dateien/Ordner am Ziel, fehlende Quelldateien und Zielpfade außerhalb des Quellordners. Reine Groß-/Kleinschreibungsänderungen und Dateinamen-Tauschaktionen werden vorerst bewusst abgelehnt, statt bestehende Dateien zu überschreiben. Ein Daten-/Dateianzahl-Unterschied blockiert den datenbasierten Vorgang.
+Der gemeinsame Planer blockiert **vor der ersten Änderung**: ungültige Windows-Dateinamen (einschließlich reservierter Namen wie CON/LPT1, abschließender Punkte/Leerzeichen und überlanger Pfade), doppelte Quell- und Zielzuordnungen, auch nur durch Groß-/Kleinschreibung unterschiedene Zielnamen, bestehende Dateien/Ordner am Ziel, fehlende Quelldateien und Zielpfade außerhalb des Quellordners. Reine Groß-/Kleinschreibungsänderungen und Dateinamen-Tauschaktionen werden vorerst bewusst abgelehnt, statt bestehende Dateien zu überschreiben. Bei abweichender Daten-/Dateianzahl erscheint wieder die Frage **„Trotzdem fortfahren?“** (Standard: Nein). Bei Zustimmung werden nur die ersten `min(Dateien, Datenzeilen)` Paare in natürlicher Dateisortierung vorausgewählt. Übrige Dateien bleiben unberührt und überschüssige Datensätze werden ignoriert. Die vollständige Konfliktprüfung und explizite Vorschau-Bestätigung bleiben Pflicht.
 
 Direkt vor der Ausführung prüft das Programm den Dateizustand **erneut**. Scheitert danach eine Dateioperation, versucht es, die bereits ausgeführten Umbenennungen rückgängig zu machen; eine unvollständige Rücknahme wird ausdrücklich gemeldet. Bei abgebrochener Vorschau bleibt die letzte erfolgreiche Wiederherstellungszuordnung erhalten. Kein Verfahren kann gleichzeitige Fremdzugriffe auf Dateien vollständig ausschließen; wichtige Originaldaten bitte weiterhin sichern.
 
@@ -45,7 +51,7 @@ Die angezeigten deutschen und englischen Zahlen werden nach dem Vergleich beider
 
 ## Neue TVmaze-Anbindung (Entwicklungsbranch)
 
-Die klassische Windows-Forms-Anwendung kann Episoden jetzt über die öffentliche [TVmaze-API](https://www.tvmaze.com/api) laden – **ohne Registrierung oder API-Key**. In einer neuen Installation ist „TVmaze“ als Anbieter vorausgewählt. Bestehende Benutzer-Einstellungen bleiben erhalten; bei Bedarf „TVmaze“ im Anbieter-Menü auswählen.
+Die klassische Windows-Forms-Anwendung kann Episoden jetzt über die öffentliche [TVmaze-API](https://www.tvmaze.com/api) laden – **ohne Registrierung oder API-Key**. In einer neuen Installation ist „TVmaze“ als Anbieter vorausgewählt. Bestehende Benutzereinstellungen für unterstützte Anbieter werden automatisch migriert.
 
 1. In der Episodensuche „TVmaze“ auswählen und einen Seriennamen (Anime oder TV-Serie) eingeben; mit Enter suchen.
 2. Die richtige Serie aus der Trefferliste auswählen. Optional eine `https://www.tvmaze.com/shows/<ID>/...`-URL oder numerische Serien-ID einfügen und auf **Check** klicken.
@@ -54,7 +60,7 @@ Die klassische Windows-Forms-Anwendung kann Episoden jetzt über die öffentlich
 
 Für „Alle Staffeln“ ist die erste Spalte als `S01E01`, `S01E02` usw. formatiert; für eine einzelne Staffel enthält sie die dortige Episodennummer. Die zweite Spalte enthält den Episodentitel. Specials können über „Staffel 0“ ausgewählt werden. Nicht eindeutig nummerierte oder namenlose Episoden werden **nicht automatisch zugeordnet**.
 
-**Einschränkungen:** TVmaze liefert hauptsächlich Original-/englische Episodentitel und keine gesicherten deutschen Episodenübersetzungen. Anime mit abweichenden Staffel-, DVD- oder absoluten Episodennummern benötigen eine sorgfältige manuelle Zuordnung. Die optionale TMDB-Anbindung unterstützt bereits deutsche Episodentitel mit englischem Fallback. Die älteren HTML-basierten Anbieter sind weiterhin vorhanden, können aber wegen Website-Änderungen fehlschlagen.
+**Einschränkungen:** TVmaze liefert hauptsächlich Original-/englische Episodentitel und keine gesicherten deutschen Episodenübersetzungen. Anime mit abweichenden Staffel-, DVD- oder absoluten Episodennummern benötigen eine sorgfältige manuelle Zuordnung. Die optionale TMDB-Anbindung unterstützt bereits deutsche Episodentitel mit englischem Fallback. Von den früheren HTML-basierten Anbietern bleibt ausschließlich AniSearch verfügbar.
 
 **Datenquelle und Lizenz:** Episodenmetadaten von [TVmaze](https://www.tvmaze.com) – öffentliche API unter CC BY-SA (Namensnennung und Weitergabe unter gleichen Bedingungen für entsprechende weiterverteilte Daten). [API-Dokumentation und Bedingungen](https://www.tvmaze.com/api).
 
