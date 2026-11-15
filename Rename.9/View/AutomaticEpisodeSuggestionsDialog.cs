@@ -334,10 +334,8 @@ namespace Episode_Names.View
                           "E" + suggestion.File.Episode.Value.ToString("00") : "?";
                     string requested = MetadataSelection.CanonicalLanguage(
                         ((KeyValuePair<string, string>)languageChoice.SelectedItem).Key);
-                    string actual = suggestion.Language ?? "und";
-                    string languageLabel = actual == requested ? actual :
-                        actual + (actual == "und" ? " (Original/unbekannt)" :
-                            " (Fallback für " + requested + ")");
+                    string languageLabel = MetadataSelection.DescribeResultLanguage(
+                        requested, suggestion.Language);
                     int index = preview.Rows.Add(suggestion.File.FileName,
                         identity, suggestion.Title, languageLabel, suggestion.Status);
                     if (!suggestion.IsMatched)
