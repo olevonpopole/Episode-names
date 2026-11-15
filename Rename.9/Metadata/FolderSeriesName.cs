@@ -62,6 +62,7 @@ namespace Episode_Names.Metadata
             leaf = Regex.Replace(leaf, @"\s*\[(?:19|20)\d{2}\]\s*$", "");
             leaf = Regex.Replace(leaf, @"\s*\[[^\]]*\]\s*$", "");
 
+            leaf = leaf.TrimEnd();
             // Stop at explicit season/episode indicators; the prefix is the
             // series name. Never try to guess anime absolute numbering.
             Match episode = EpisodeMarker.Match(leaf);
