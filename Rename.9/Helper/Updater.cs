@@ -188,11 +188,11 @@ try {
         $dest = Join-Path $target $relative
         $backupFile = Join-Path $backup $relative
         New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force | Out-Null
-        $changes.Add($relative)
         if (Test-Path -LiteralPath $dest) {
             New-Item -ItemType Directory -Path (Split-Path -Parent $backupFile) -Force | Out-Null
             Copy-Item -LiteralPath $dest -Destination $backupFile -Force
         }
+        $changes.Add($relative)
         Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
     }
     Start-Process -FilePath (Join-Path $target 'Episode-Names.exe')
