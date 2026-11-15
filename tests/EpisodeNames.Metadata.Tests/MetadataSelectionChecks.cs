@@ -62,6 +62,11 @@ namespace Episode_Names.Metadata.Tests
                 "und (Original/unbekannt)", "TVmaze source language remains unknown");
             Assert(MetadataSelection.DescribeResultLanguage("de", null) ==
                 "und (Original/unbekannt)", "Missing episode language never claimed translated");
+            Assert(MetadataSelection.DescribeResultLanguage("pt", "pt-BR") == "pt-br" &&
+                MetadataSelection.DescribeResultLanguage("zh", "zh-Hans") == "zh-hans",
+                "Regional localized titles not mislabeled as fallback");
+            Assert(MetadataSelection.DescribeResultLanguage("ja", "ja-Latn")
+                .Contains("Fallback"), "Romaji not falsely claimed as Japanese translation");
 
             Assert(MetadataSelection.SupportedLanguages().Count == 11,
                 "Eleven multilingual choices are available");
