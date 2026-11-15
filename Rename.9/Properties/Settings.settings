@@ -50,6 +50,9 @@
     <Setting Name="TmdbCredential" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="AutoSearchFavorites" Type="System.String" Scope="User"><Value Profile="(Default)">tvmaze</Value></Setting>
+    <Setting Name="GitHubUpdateToken" Type="System.String" Scope="User"><Value Profile="(Default)" /></Setting>
+    <Setting Name="GitHubUpdateRepository" Type="System.String" Scope="User"><Value Profile="(Default)">olevonpopole/Episode-names</Value></Setting>
     <Setting Name="UpdateDialogShowed" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
