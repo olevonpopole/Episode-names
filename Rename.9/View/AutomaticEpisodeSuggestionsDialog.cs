@@ -36,6 +36,7 @@ namespace Episode_Names.View
         private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
         private readonly Label status;
         private readonly TextBox queryBox;
+        private readonly ComboBox languageChoice;
         private readonly Button searchAgain;
         private readonly ListBox matches;
         private readonly DataGridView preview;
@@ -74,10 +75,42 @@ namespace Episode_Names.View
                 Dock = DockStyle.Top, Height = 39, Padding = new Padding(7, 4, 7, 4) };
             searchBar.Controls.Add(new Label { Text = "Serientitel:", Width = 82,
                 TextAlign = ContentAlignment.MiddleLeft, Height = 26 });
-            queryBox = new TextBox { Width = 460, Text = query };
+            queryBox = new TextBox { Width = 372, Text = query };
+            searchBar.Controls.Add(new Label { Text = "Sprache:", Width = 57,
+                TextAlign = ContentAlignment.MiddleLeft, Height = 26 });
+            languageChoice = new ComboBox {
+                Width = 115, DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            languageChoice.Items.Add(new KeyValuePair<string, string>("de", "Deutsch"));
+            languageChoice.Items.Add(new KeyValuePair<string, string>("en", "English"));
+            languageChoice.Items.Add(new KeyValuePair<string, string>("ja", "日本語"));
+            languageChoice.DisplayMember = "Value";
+            languageChoice.ValueMember = "Key";
+            string preferred = MetadataSelection.CanonicalLanguage(
+                Properties.Settings.Default.PreferredMetadataLanguage);
+            for (int i = 0; i < languageChoice.Items.Count; i++)
+            {
+                if (((KeyValuePair<string, string>)languageChoice.Items[i]).Key == preferred)
+                {
+                    languageChoice.SelectedIndex = i;
+                    break;
+                }
+            }
+            if (languageChoice.SelectedIndex < 0) languageChoice.SelectedIndex = 0;
+            languageChoice.SelectedIndexChanged += (s, e) => {
+                // Never allow a preview generated for another language to be accepted.
+                current = null;
+                accept.Enabled = false;
+                preview.Rows.Clear();
+                matches.Items.Clear();
+                candidates.Clear();
+                status.Text = "Zielsprache geändert. Bitte „Erneut suchen“ wählen. " +
+                    "TVmaze liefert Originaltitel; TMDB unterstützt Deutsch und Englisch.";
+            };
             searchAgain = new Button { Text = "Erneut suchen", Width = 120 };
             searchAgain.Click += async (s, e) => await SearchAsync();
             searchBar.Controls.Add(queryBox);
+            searchBar.Controls.Add(languageChoice);
             searchBar.Controls.Add(searchAgain);
 
             matches = new ListBox { Dock = DockStyle.Top, Height = 120 };
@@ -149,7 +182,11 @@ namespace Episode_Names.View
             matches.Items.Clear();
             accept.Enabled = false;
             string language = MetadataSelection.CanonicalLanguage(
-                Properties.Settings.Default.PreferredMetadataLanguage);
+                ((KeyValuePair<string, string>)languageChoice.SelectedItem).Key);
+            // Consistent with the manual provider dialog: remember the language
+            // when a search starts, not on an uncommitted selection change.
+            Properties.Settings.Default.PreferredMetadataLanguage = language;
+            Properties.Settings.Default.Save();
             var providers = new List<IEpisodeMetadataProvider>();
             string tmdbError = "";
             try
@@ -164,8 +201,9 @@ namespace Episode_Names.View
             }
             providers.Add(new TvMazeProvider());
 
-            status.Text = "Suche: " + searchTerm + " | Sprache: " + language.ToUpperInvariant() +
-                " | TVmaze liefert Originaltitel; TMDB nur mit gespeichertem Key.";
+            status.Text = "Suche: " + searchTerm + " | Zielsprache: " + language.ToUpperInvariant() +
+                " | TVmaze: Originaltitel; TMDB: DE/EN mit Key" +
+                (language == "ja" ? " (bei JA keine TMDB-Japanisch-Unterstützung)" : "") + ".";
             string errors = tmdbError;
             int rawResults = 0;
             foreach (IEpisodeMetadataProvider provider in providers)
@@ -294,17 +332,28 @@ namespace Episode_Names.View
                     string identity = suggestion.File.Season.HasValue && suggestion.File.Episode.HasValue
                         ? "S" + suggestion.File.Season.Value.ToString("00") +
                           "E" + suggestion.File.Episode.Value.ToString("00") : "?";
+                    string requested = MetadataSelection.CanonicalLanguage(
+                        ((KeyValuePair<string, string>)languageChoice.SelectedItem).Key);
+                    string actual = suggestion.Language ?? "und";
+                    string languageLabel = actual == requested ? actual :
+                        actual + (actual == "und" ? " (Original/unbekannt)" :
+                            " (Fallback für " + requested + ")");
                     int index = preview.Rows.Add(suggestion.File.FileName,
-                        identity, suggestion.Title, suggestion.Language, suggestion.Status);
+                        identity, suggestion.Title, languageLabel, suggestion.Status);
                     if (!suggestion.IsMatched)
                     {
                         preview.Rows[index].Cells[2].ReadOnly = true;
                         preview.Rows[index].DefaultCellStyle.BackColor = Color.MistyRose;
                     }
                 }
+                int fallback = current.Count(s => s.IsMatched &&
+                    !string.Equals(s.Language,
+                        ((KeyValuePair<string, string>)languageChoice.SelectedItem).Key,
+                        StringComparison.OrdinalIgnoreCase));
                 status.Text = "Zuordnung von " + selected.Provider.DisplayName + ": " +
                     current.Count(s => s.IsMatched) + " / " + current.Count +
-                    " Folgen eindeutig. Fehlende oder doppelte Folgen bleiben blockiert.";
+                    " Folgen eindeutig. " + fallback +
+                    " Titel nicht in gewählter Sprache (Original/Fallback).";
                 UpdateAcceptStatus();
             }
             catch (OperationCanceledException) { }
@@ -325,6 +374,7 @@ namespace Episode_Names.View
             load.Enabled = !busy && matches.SelectedItem != null;
             searchAgain.Enabled = !busy;
             queryBox.Enabled = !busy;
+            languageChoice.Enabled = !busy;
             accept.Enabled = !busy && current != null && current.Count > 0 &&
                 current.All(x => x.IsMatched);
         }
