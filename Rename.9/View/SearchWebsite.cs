@@ -78,8 +78,7 @@ namespace Episode_Names.Anisearch
             }
             else if (provider == TmdbIndex)
             {
-                choices.Add(new KeyValuePair<string, string>("de", "Deutsch"));
-                choices.Add(new KeyValuePair<string, string>("en", "English"));
+                choices.AddRange(MetadataSelection.SupportedLanguages());
             }
             else
             {
@@ -760,13 +759,17 @@ namespace Episode_Names.Anisearch
                 if (usable.Count == 0)
                     throw new MetadataProviderException("TMDB liefert keine eindeutig nummerierten Episodentitel für diese Auswahl.");
 
-                int deCount = usable.Count(item => item.Language == "de");
-                int enCount = usable.Count(item => item.Language == "en");
+                int desiredCount = usable.Count(item => item.Language == provider.PreferredLanguage);
+                int enCount = usable.Count(item => item.Language == "en" &&
+                    item.Language != provider.PreferredLanguage);
+                int otherCount = usable.Count - desiredCount - enCount;
                 int skipped = episodes.Count - usable.Count;
-                string notice = "Quelle: TMDB\nDeutsche Titel: " + deCount
-                    + "\nEnglische Titel: " + enCount
-                    + "\nNicht zugeordnete/fehlende Titel: " + skipped
-                    + "\n\nEpisodennummerierung und Namen vor dem Umbenennen prüfen. " +
+                string notice = "Quelle: TMDB\nZielsprache: " + provider.PreferredLanguage +
+                    "\nTitel in Zielsprache: " + desiredCount +
+                    "\nEnglischer Fallback: " + enCount +
+                    "\nSonstige/ungeklärte Sprachangaben: " + otherCount +
+                    "\nNicht zugeordnete/fehlende Titel: " + skipped +
+                    "\n\nEpisodennummerierung und tatsächliche Titelsprachen vor dem Umbenennen prüfen. " +
                     "Daten in den Editor übernehmen?";
                 if (MessageBox.Show(notice, "TMDB – Titelsprachen", MessageBoxButtons.YesNo,
                     MessageBoxIcon.Information) != DialogResult.Yes)
