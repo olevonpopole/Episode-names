@@ -25,7 +25,7 @@ namespace Episode_Names.Metadata
             @"(?:^|[\s._-])(?:s\d{1,3}[\s._-]*e\d{1,4}|\d{1,3}x\d{1,4}|(?:episode|ep|folge)[\s._-]*\d{1,4})(?=$|[\s._\-\[(])",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex ReleaseTag = new Regex(
-            @"^(?:\d{3,4}p|4k|uhd|hdr(?:10|10\+)?|dv|dolbyvision|bluray|blu-ray|bdrip|brrip|webrip|web-dl|webdl|hdtv|dvdrip|remux|x264|x265|h264|h265|hevc|av1|avc|aac(?:2\.0)?|ac3|eac3|dts(?:-hd)?|flac|10bit|8bit|dual|multi|multisub|subbed|dubbed|proper|repack|complete|german|english|ger|eng|deu|jpn|jap|vostfr|nf|amzn|dsnp|cr|subsplease|erai-raws|batch)$",
+            @"^(?:\d{3,4}p|4k|uhd|hdr(?:10|10\+)?|dv|dolbyvision|bluray|blu-ray|bdrip|brrip|webrip|web-dl|webdl|hdtv|dvdrip|remux|x264|x265|h264|h265|hevc|av1|avc|aac(?:2\.0)?|ac3|eac3|dts(?:-hd)?|flac|10bit|8bit|dual|multi|multisub|subbed|dubbed|proper|repack|complete|vostfr|nf|amzn|dsnp|cr|subsplease|erai-raws|batch)$",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         private static readonly Regex Year = new Regex(
             @"^(?:19\d{2}|20\d{2})$", RegexOptions.CultureInvariant);
@@ -49,7 +49,17 @@ namespace Episode_Names.Metadata
             // Release groups are metadata only when present as leading brackets.
             while (LeadingReleaseGroup.IsMatch(leaf))
                 leaf = LeadingReleaseGroup.Replace(leaf, "", 1);
-            // Square-bracket suffixes most often contain release metadata.
+            // Bracketed technical tags often occur without spaces:
+            // [1080p][x264][Sub][AAC 2.0][Crunchyroll WebDL].
+            // Truncate only after a recognizably technical first bracket;
+            // never treat arbitrary title brackets as release groups.
+            Match bracketedTag = Regex.Match(leaf,
+                @"\[(?:\d{3,4}p|4k|x26[45]|h26[45]|hevc|av1|sub|dub|aac(?:\s*\d+(?:\.\d+)?)?|flac(?:\s*\d+(?:\.\d+)?)?|web[- ]?dl|bluray|bd|crunchyroll(?:\s+web[- ]?dl)?)\]",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (bracketedTag.Success)
+                leaf = leaf.Substring(0, bracketedTag.Index);
+            // A year in trailing square brackets is release metadata, not title.
+            leaf = Regex.Replace(leaf, @"\s*\[(?:19|20)\d{2}\]\s*$", "");
             leaf = Regex.Replace(leaf, @"\s*\[[^\]]*\]\s*$", "");
 
             // Stop at explicit season/episode indicators; the prefix is the
@@ -57,6 +67,10 @@ namespace Episode_Names.Metadata
             Match episode = EpisodeMarker.Match(leaf);
             if (episode.Success && episode.Index > 0)
                 leaf = leaf.Substring(0, episode.Index);
+            // The year before an explicit SxxExx marker identifies the release,
+            // not the series name: Saga.of.Tanya.the.Evil.2017.S02E01.
+            leaf = Regex.Replace(leaf, @"[._\s-]+(?:19\d{2}|20\d{2})$",
+                "", RegexOptions.CultureInvariant);
             // Anime groups often put a bare episode number after " - ".
             leaf = Regex.Replace(leaf, @"\s+-\s+\d{1,4}$", "",
                 RegexOptions.CultureInvariant);
