@@ -49,3 +49,11 @@ Die Stichwörter sind **Release-Angaben**, keine extern verifizierten Medienmerk
 **Titel bleiben Titel:** Der Unicode-Doppelpunkt `：` und Wörter wie `English` werden nicht pauschal überall entfernt. `The English` bleibt der Titel; `Nichijou： My Ordinary Life` behält seinen Untertitel. Technische Markierungen in aufeinanderfolgenden eckigen Klammern werden dagegen erkannt und vom Suchvorschlag abgetrennt. Jahreszahlen werden nur in typischen Release-Positionen entfernt.
 
 Diese Regeln beeinflussen nur die lokale, bearbeitbare Sucheingabe. Ordnernamen werden nicht automatisch umbenannt und die Episodenpositionen nicht daraus abgeleitet.
+
+## NTFS-Release mit horizontaler Auflösung und Prüfsumme
+
+Nutzerbefund: `X:\Airing Anime\[NTFS] Kemono no Souja Erin 01 [1280x720 h264] [47C8760B]` wurde zuvor als `Kemono no Souja Erin 01 [1280x720` erkannt.
+
+Korrigierte Erwartung: **`Kemono no Souja Erin`**. `[NTFS]` ist die führende Release-Gruppe, `01` die Folgenzahl, `[1280x720 h264]` Auflösung und Codec, und `[47C8760B]` vermutlich eine CRC32-Prüfsumme. Der Parser erkennt jetzt Klammern wie `[1280x720 h264]` und `[1920x1080 x265]` als technische Anhänge. Eine alleinstehende Folgenzahl ohne ` - ` wird **nur entfernt, wenn unmittelbar anschließend technische Metadaten erkannt wurden**. Damit bleibt `Area 51` ohne entsprechende Release-Tags unverändert.
+
+Es werden keine unbekannten Zahlen blind entfernt, und die erkannte Zeichenfolge ist weiterhin nur ein editierbarer Suchvorschlag.
