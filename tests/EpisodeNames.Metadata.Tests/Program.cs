@@ -24,6 +24,7 @@ namespace Episode_Names.Metadata.Tests
                 FolderSeriesNameChecks.Run();
                 EpisodeFileMatcherChecks.Run();
                 SeasonNumberChecks.Run();
+                AnimeEpisodeSourcesChecks.Run();
                 FilenameCharactersChecks.Run();
                 AnimeTitleAliasesChecks.Run();
                 Console.WriteLine("TVmaze and TMDB provider checks passed.");
