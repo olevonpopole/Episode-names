@@ -132,7 +132,16 @@ namespace Episode_Names.View
                 favoriteSources.Items.Add(source, favorites.Contains(source.Key));
             favoriteSources.ItemCheck += (s, e) => {
                 if (!busy && IsHandleCreated)
-                    BeginInvoke(new Action(InvalidateSuggestions));
+                    BeginInvoke(new Action(() => {
+                        InvalidateSuggestions();
+                        var checkedSources = SelectedSources();
+                        if (checkedSources.Count > 0)
+                        {
+                            Properties.Settings.Default.AutoSearchFavorites =
+                                MetadataSourceFavorites.Save(checkedSources);
+                            Properties.Settings.Default.Save();
+                        }
+                    }));
             };
             matches = new ListBox { Dock = DockStyle.Top, Height = 120 };
             matches.SelectedIndexChanged += (s, e) => load.Enabled = !busy && matches.SelectedItem != null;
@@ -418,7 +427,12 @@ namespace Episode_Names.View
             preview.Rows.Clear();
             SetBusy(true);
             status.Text = "Lade Episodendaten von " + selected.Provider.DisplayName +
-                " für „" + selected.Series.Name + "“ …";
+                " für „" + selected.Series.Name + "“ (max. 20 Sekunden) …";
+            using (var loadLimit = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellation.Token))
+            {
+            loadLimit.CancelAfter(TimeSpan.FromSeconds(20));
+            activeSearch = loadLimit;
             try
             {
                 IReadOnlyList<EpisodeMetadata> episodes;
@@ -430,15 +444,15 @@ namespace Episode_Names.View
                     var all = new List<EpisodeMetadata>();
                     foreach (int season in seasonNumbers)
                     {
-                        cancellation.Token.ThrowIfCancellationRequested();
+                        loadLimit.Token.ThrowIfCancellationRequested();
                         all.AddRange(await tmdb.GetSeasonEpisodesAsync(
-                            selected.Series.Id, season, cancellation.Token));
+                            selected.Series.Id, season, loadLimit.Token));
                     }
                     episodes = all;
                 }
                 else
                     episodes = await selected.Provider.GetEpisodesAsync(
-                        selected.Series.Id, false, cancellation.Token);
+                        selected.Series.Id, false, loadLimit.Token);
                 if (IsDisposed || cancellation.IsCancellationRequested) return;
 
                 current = EpisodeFileMatcher.Match(files, episodes);
@@ -470,16 +484,24 @@ namespace Episode_Names.View
                     " Titel nicht in gewählter Sprache (Original/Fallback).";
                 UpdateAcceptStatus();
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                if (!IsDisposed)
+                    status.Text = "Episodenabfrage gestoppt oder Zeitlimit (20 Sek.). " +
+                        "Keine Dateien geändert.";
+            }
             catch (Exception ex)
             {
-                status.Text = "Episodenabfrage fehlgeschlagen: " + ex.GetType().Name +
-                    ". Serie/Provider prüfen; keine Dateien geändert.";
+                if (!IsDisposed)
+                    status.Text = "Episodenabfrage fehlgeschlagen: " + ex.GetType().Name +
+                        ". Serie/Provider prüfen; keine Dateien geändert.";
             }
             finally
             {
+                activeSearch = null;
                 if (!IsDisposed) SetBusy(false);
             }
+            } // loadLimit
         }
 
         private void SetBusy(bool value)
