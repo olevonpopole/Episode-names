@@ -256,6 +256,17 @@ namespace Episode_Names
                         {
                             fullname.Append(dirName);
                         }
+                        else if (format == SettingHelper.SeriesTitle)
+                        {
+                            // Based on the actual selected folder (including a
+                            // Staffel/Season subfolder), not a file-name index.
+                            string title = FolderSeriesName.Suggest(txtPath.Text);
+                            if (string.IsNullOrWhiteSpace(title))
+                                throw new InvalidOperationException(
+                                    "Der Serientitel konnte aus dem Ordner nicht erkannt werden. " +
+                                    "Bitte den Ordnernamen prüfen oder %series aus dem Format entfernen.");
+                            fullname.Append(title);
+                        }
                         else //Nummer 1-100
                         {
                             char a = txtSplit.Text == "\\t" ? '\t' : '\n';
@@ -328,9 +339,7 @@ namespace Episode_Names
         #region Sonderzeichen werden ersetzt
         private static string ReplaceSpecialCharacters(string erg)
         {
-            return erg.Replace("?",   "？")
-                      .Replace(" : ", "：")
-                      .Replace(":",   "：")
+            return FilenameCharacters.ReplaceColon(erg).Replace("?",   "？")
                       .Replace("/",   " ∕ ")
                       .Replace("\\",  "＼")
                       .Replace("\"",  "''")
