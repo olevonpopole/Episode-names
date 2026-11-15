@@ -30,14 +30,14 @@ namespace Episode_Names.Metadata
         public string PreferredLanguage { get { return language; } }
 
         /// <param name="apiKeyOrReadToken">A user-supplied v3 API key or API Read Access Token (JWT).</param>
-        /// <param name="preferredLanguage">Either de or en, defaults to German.</param>
+        /// <param name="preferredLanguage">Supported TMDB ISO-639 locale, defaults to German.</param>
         public TmdbProvider(string apiKeyOrReadToken, string preferredLanguage = "de", HttpClient httpClient = null)
         {
             if (string.IsNullOrWhiteSpace(apiKeyOrReadToken))
                 throw new MetadataProviderException("TMDB benötigt einen eigenen kostenlosen API-Key oder API Read Access Token.");
             credential = apiKeyOrReadToken.Trim();
             bearer = credential.StartsWith("eyJ", StringComparison.Ordinal);
-            language = string.Equals(preferredLanguage, "en", StringComparison.OrdinalIgnoreCase) ? "en" : "de";
+            language = MetadataSelection.CanonicalLanguage(preferredLanguage);
             client = httpClient ?? SharedClient;
         }
 
@@ -140,7 +140,7 @@ namespace Episode_Names.Metadata
                     && (string.IsNullOrEmpty(engTitle) || !string.Equals(localTitle, engTitle, StringComparison.Ordinal)))
                 {
                     chosen = localTitle;
-                    actualLanguage = "de";
+                    actualLanguage = language;
                 }
                 else
                 {
@@ -189,7 +189,25 @@ namespace Episode_Names.Metadata
             return true;
         }
 
-        private string Locale { get { return language == "en" ? "en-US" : "de-DE"; } }
+        private string Locale { get { return LocaleForLanguage(language); } }
+
+        internal static string LocaleForLanguage(string code)
+        {
+            switch (MetadataSelection.CanonicalLanguage(code))
+            {
+                case "en": return "en-US";
+                case "ja": return "ja-JP";
+                case "fr": return "fr-FR";
+                case "es": return "es-ES";
+                case "it": return "it-IT";
+                case "pt": return "pt-PT";
+                case "pl": return "pl-PL";
+                case "ko": return "ko-KR";
+                case "zh": return "zh-CN";
+                case "tr": return "tr-TR";
+                default: return "de-DE";
+            }
+        }
 
         private static int ParseId(string id)
         {
