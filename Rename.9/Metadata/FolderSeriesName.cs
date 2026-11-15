@@ -54,10 +54,11 @@ namespace Episode_Names.Metadata
             // Truncate only after a recognizably technical first bracket;
             // never treat arbitrary title brackets as release groups.
             Match bracketedTag = Regex.Match(leaf,
-                @"\[(?:\d{3,4}p|4k|x26[45]|h26[45]|hevc|av1|sub|dub|aac(?:\s*\d+(?:\.\d+)?)?|flac(?:\s*\d+(?:\.\d+)?)?|web[- ]?dl|bluray|bd|crunchyroll(?:\s+web[- ]?dl)?)\]",
+                @"\[(?:\d{3,4}p|\d{3,4}x\d{3,4}(?:\s+(?:[xh]26[45]|hevc|av1))?|4k|x26[45]|h26[45]|hevc|av1|sub|dub|aac(?:\s*\d+(?:\.\d+)?)?|flac(?:\s*\d+(?:\.\d+)?)?|web[- ]?dl|bluray|bd|crunchyroll(?:\s+web[- ]?dl)?)\]",
                 RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             if (bracketedTag.Success)
                 leaf = leaf.Substring(0, bracketedTag.Index);
+            bool hadReleaseMetadata = bracketedTag.Success;
             // A year in trailing square brackets is release metadata, not title.
             leaf = Regex.Replace(leaf, @"\s*\[(?:19|20)\d{2}\]\s*$", "");
             leaf = Regex.Replace(leaf, @"\s*\[[^\]]*\]\s*$", "");
@@ -75,6 +76,12 @@ namespace Episode_Names.Metadata
             // Anime groups often put a bare episode number after " - ".
             leaf = Regex.Replace(leaf, @"\s+-\s+\d{1,4}$", "",
                 RegexOptions.CultureInvariant);
+            // An unseparated bare number is an episode only when technical
+            // metadata was removed right after it. Otherwise titles such
+            // as "Area 51" must retain their number.
+            if (hadReleaseMetadata)
+                leaf = Regex.Replace(leaf, @"\s+\d{1,4}$", "",
+                    RegexOptions.CultureInvariant);
             // Remove standalone season markers even when they have no episode.
             leaf = Regex.Replace(leaf,
                 @"(?:[._\s-]+)(?:season|staffel|saison|s)\s*[._-]*\d{1,3}(?:[._\s-]|$).*$",
