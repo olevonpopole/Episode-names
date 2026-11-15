@@ -65,3 +65,13 @@ AniList-Abfragen sind optional und begrenzt: höchstens eine Suchabfrage pro ges
 - C#-Tests prüfen den Ersatzausdruck und einen echten Umbenennungsvorgang in einem temporären Testordner auf Windows.
 
 **Manuelle Abnahme:** In Windows den Dialog **Special Characters** öffnen und den Doppelpunkt kopieren, testweise in Editor/Dateinamen prüfen; mit `%series - %pos` eine Testdatei über die sichere Vorschau umbenennen, danach Abbrechen. Alias-Suche mit `Elainas Reise` anstoßen, danach deutsche/englische Titel und Status der Ergebniszeilen prüfen. Kein Release ohne bestätigten GUI-Test.
+
+## Formatbaustein `%season` – Staffelnummer
+
+Zusätzlich zu `%series` gibt es in den Einstellungen unter Format String nun `%season`. Er wird als **zweistellige Staffelnummer** dargestellt, z. B. `01`, `02` oder `12`. Der Wert wird **für jede Datei separat** aus einer eindeutigen `S02E03`-/`2x03`-Angabe, einem passenden Staffelordner oder der vorausgefüllten Datenzeile `S02E03<TAB>Titel` ermittelt.
+
+Beispiel: `%series - S%season - %pos` ergibt `Elainas Reise - S01 - Episodentitel`, sofern der Dateiname oder die Datenzeile Staffel 1 eindeutig belegt. `S02E01` ergibt entsprechend `S02`.
+
+Fehlende oder widersprüchliche Angaben (z. B. Datei S01E03, Datenzeile S02E03) **blockieren die Vorschau**, statt eine falsche Staffelnummer zu erfinden. Auch widersprechende Episodennummern und mehrdeutige Staffel-/Folgenmarker werden zurückgewiesen.
+
+Manuelle Abnahme: Testordner `Show` mit `Show.S02E03.mkv`, Datenzeile `S02E03<TAB>Titel`, Format `%series - S%season - %pos`; in der Umbenennungsvorschau `Show - S02 - Titel.mkv` erwarten. Vorschau abbrechen und die Originaldatei auf Unverändertheit prüfen.
