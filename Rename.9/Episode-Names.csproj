@@ -122,6 +122,10 @@
     <Compile Include="Helper\SettingHelper.cs" />
     <Compile Include="Helper\FilenameCharacters.cs" />
     <Compile Include="Helper\Updater.cs" />
+    <Compile Include="Helper\ReleasePackageValidator.cs" />
+    <Compile Include="Helper\GitHubReleaseClient.cs" />
+    <Compile Include="Helper\GitHubUpdateCredentialStore.cs" />
+    <Compile Include="View\GitHubReleaseSettingsDialog.cs" />
     <Compile Include="View\SearchWebsite.cs">
       <SubType>Form</SubType>
     </Compile>
