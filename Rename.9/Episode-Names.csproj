@@ -103,6 +103,7 @@
     <Compile Include="Metadata\MetadataSelection.cs" />
     <Compile Include="Renaming\RenamePlanner.cs" />
     <Compile Include="Renaming\MetadataRows.cs" />
+    <Compile Include="Renaming\RenameCountPolicy.cs" />
     <Compile Include="View\RenamePreviewDialog.cs" />
     <Compile Include="Exceptions\AbortException.cs" />
     <Compile Include="Helper\ErrorHelper.cs" />
