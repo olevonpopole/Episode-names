@@ -25,12 +25,18 @@
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Security" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="RenamePlanChecks.cs" />
     <Compile Include="MetadataRowsChecks.cs" />
     <Compile Include="MetadataSelectionChecks.cs" />
+    <Compile Include="ReleaseUpdaterChecks.cs" />
+    <Compile Include="..\..\Rename.9\Helper\ReleasePackageValidator.cs"><Link>ReleasePackageValidator.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Helper\GitHubReleaseClient.cs"><Link>GitHubReleaseClient.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Helper\GitHubUpdateCredentialStore.cs"><Link>GitHubUpdateCredentialStore.cs</Link></Compile>
     <Compile Include="AnisearchUrlChecks.cs" />
     <Compile Include="FolderSeriesNameChecks.cs" />
     <Compile Include="EpisodeFileMatcherChecks.cs" />
