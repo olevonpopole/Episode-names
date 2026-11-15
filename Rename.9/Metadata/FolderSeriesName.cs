@@ -38,7 +38,7 @@ namespace Episode_Names.Metadata
             // Path.GetFileName does not recognize Windows backslashes when unit
             // tests are run on a non-Windows development machine.
             string path = folderPath.Trim().TrimEnd('\\', '/');
-            if (path.Length == 0) return "";
+            if (path.Length == 0 || Regex.IsMatch(path, @"^[A-Za-z]:$")) return "";
             string[] parts = path.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length == 0) return "";
             string leaf = parts[parts.Length - 1];
@@ -57,6 +57,13 @@ namespace Episode_Names.Metadata
             Match episode = EpisodeMarker.Match(leaf);
             if (episode.Success && episode.Index > 0)
                 leaf = leaf.Substring(0, episode.Index);
+            // Anime groups often put a bare episode number after " - ".
+            leaf = Regex.Replace(leaf, @"\s+-\s+\d{1,4}$", "",
+                RegexOptions.CultureInvariant);
+            // Remove standalone season markers even when they have no episode.
+            leaf = Regex.Replace(leaf,
+                @"(?:[._\s-]+)(?:season|staffel|saison|s)\s*[._-]*\d{1,3}(?:[._\s-]|$).*$",
+                "", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
             // Separator-delimited release tokens after the title (e.g. 1080p).
             // Keep ordinary words, even if they look like short abbreviations
             // within the real title.
@@ -70,7 +77,8 @@ namespace Episode_Names.Metadata
             {
                 string token = tokens[i].Trim('(', ')', '[', ']', '-');
                 if (ReleaseTag.IsMatch(token) ||
-                    (Year.IsMatch(token) && i == tokens.Count - 1))
+                    (Year.IsMatch(token) && (i == tokens.Count - 1 ||
+                        tokens.Skip(i + 1).All(t => ReleaseTag.IsMatch(t)))))
                 {
                     tokens = tokens.Take(i).ToList();
                     break;
