@@ -35,8 +35,33 @@ namespace Episode_Names.Metadata
                 case "de": return "de";
                 case "en": return "en";
                 case "ja": return "ja";
+                case "fr": return "fr";
+                case "es": return "es";
+                case "it": return "it";
+                case "pt": return "pt";
+                case "pl": return "pl";
+                case "ko": return "ko";
+                case "zh": return "zh";
+                case "tr": return "tr";
                 default: return "de";
             }
+        }
+
+        internal static IReadOnlyList<KeyValuePair<string, string>> SupportedLanguages()
+        {
+            return new List<KeyValuePair<string, string>> {
+                new KeyValuePair<string, string>("de", "Deutsch"),
+                new KeyValuePair<string, string>("en", "English"),
+                new KeyValuePair<string, string>("ja", "日本語"),
+                new KeyValuePair<string, string>("fr", "Français"),
+                new KeyValuePair<string, string>("es", "Español"),
+                new KeyValuePair<string, string>("it", "Italiano"),
+                new KeyValuePair<string, string>("pt", "Português"),
+                new KeyValuePair<string, string>("pl", "Polski"),
+                new KeyValuePair<string, string>("ko", "한국어"),
+                new KeyValuePair<string, string>("zh", "中文"),
+                new KeyValuePair<string, string>("tr", "Türkçe")
+            };
         }
 
         internal static string DescribeResultLanguage(string requestedLanguage, string actualLanguage)
