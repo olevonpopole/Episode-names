@@ -18,6 +18,11 @@ namespace Episode_Names.Helper
     {
         private static bool checking;
 
+        internal static string GetCurrentDirectory()
+        {
+            return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        }
+
         internal static async void CheckUpdate(bool automatic, Form owner)
         {
             if (checking || owner == null || owner.IsDisposed) return;
