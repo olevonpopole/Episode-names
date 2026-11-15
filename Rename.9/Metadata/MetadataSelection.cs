@@ -10,6 +10,8 @@ namespace Episode_Names.Metadata
         internal const int Anisearch = 0;
         internal const int TvMaze = 1;
         internal const int Tmdb = 2;
+        internal const int Jikan = 3;
+        internal const int AniZip = 4;
 
         internal static int MigrateLegacyProvider(int oldIndex)
         {
