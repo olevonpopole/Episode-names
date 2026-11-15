@@ -39,6 +39,16 @@ namespace Episode_Names.Metadata
             }
         }
 
+        internal static string DescribeResultLanguage(string requestedLanguage, string actualLanguage)
+        {
+            string requested = CanonicalLanguage(requestedLanguage);
+            string actual = string.IsNullOrWhiteSpace(actualLanguage) ? "und" :
+                actualLanguage.Trim().ToLowerInvariant();
+            if (actual == requested) return actual;
+            if (actual == "und") return "und (Original/unbekannt)";
+            return actual + " (Fallback für " + requested + ")";
+        }
+
         internal static int FindLanguageIndex(IEnumerable<KeyValuePair<string, string>> choices,
             string preferredLanguage)
         {
