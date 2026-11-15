@@ -169,6 +169,22 @@ namespace Episode_Names.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string PreferredMetadataLanguage {
+            get { return ((string)(this["PreferredMetadataLanguage"])); }
+            set { this["PreferredMetadataLanguage"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool MetadataProviderSelectionMigrated {
+            get { return ((bool)(this["MetadataProviderSelectionMigrated"])); }
+            set { this["MetadataProviderSelectionMigrated"] = value; }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("4")]
         public int SelectedWebsite {
             get {
