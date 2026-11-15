@@ -41,6 +41,16 @@ Nach jedem Versuch den tatsächlichen Dateibestand im Windows-Explorer überprü
 - **M05:** Benutzer, die früher AniSearch oder TMDB gespeichert hatten, behalten den jeweiligen Anbieter nach einmaliger Migration. Alte entfernte Anbieter werden einmalig auf TVmaze umgestellt.
 - **M06:** Wenn TMDB oder AniSearch im Verlauf eine andere Sprache erhalten, zählt die **zuletzt gestartete Suche**, nicht eine bloße Dropdown-Auswahl ohne Suche.
 
+## 2b. Automatische Serienerkennung aus dem Ordnernamen
+
+- **F01:** Als Ordner `Breaking.Bad.S01E01.1080p.WEB-DL.x264` auswählen, `Suche auf Website` öffnen: Suchfeld sollte `Breaking Bad` enthalten.
+- **F02:** Mit Ordner `[SubsPlease] Frieren - 01 [1080p]` wiederholen: Suchfeld `Frieren`.
+- **F03:** `House.of.the.Dragon\\Season 02` prüfen: Im Staffel-Unterordner sollte `House of the Dragon` vorgeschlagen werden.
+- **F04:** Vorbefüllten Suchtext verändern: Eingabe muss frei editierbar bleiben und die Suche darf nicht von selbst starten.
+- **F05:** Es dürfen weder Dateien umbenannt noch Serien/Staffeln automatisch ausgewählt werden.
+
+Die Funktion ist bewusst eine Vorschlagserkennung; falsch oder mehrdeutig benannte Ordner müssen vor der Suche korrigiert werden. Weitere Beispiele stehen in `docs/FOLDER_SERIES_DETECTION.md`.
+
 ## 3. TVmaze – Live-Test ohne API-Key
 
 1. Hauptfenster geöffnet lassen; einen Testordner als Pfad ausgewählt lassen.
