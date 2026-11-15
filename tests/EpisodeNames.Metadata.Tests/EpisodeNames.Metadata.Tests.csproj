@@ -31,6 +31,8 @@
     <Compile Include="RenamePlanChecks.cs" />
     <Compile Include="MetadataRowsChecks.cs" />
     <Compile Include="MetadataSelectionChecks.cs" />
+    <Compile Include="AnisearchUrlChecks.cs" />
+    <Compile Include="..\..\Rename.9\Metadata\AnisearchUrl.cs"><Link>AnisearchUrl.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\MetadataSelection.cs"><Link>MetadataSelection.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Renaming\RenameCountPolicy.cs"><Link>RenameCountPolicy.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Renaming\MetadataRows.cs"><Link>MetadataRows.cs</Link></Compile>
