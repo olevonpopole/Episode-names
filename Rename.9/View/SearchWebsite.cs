@@ -22,6 +22,8 @@ namespace Episode_Names.Anisearch
         private const int AnisearchIndex = MetadataSelection.Anisearch;
         private const int TvMazeIndex = MetadataSelection.TvMaze;
         private const int TmdbIndex = MetadataSelection.Tmdb;
+        private const int JikanIndex = MetadataSelection.Jikan;
+        private const int AniZipIndex = MetadataSelection.AniZip;
         private Label lblTmdbCredential;
         private TextBox txtTmdbCredential;
         private Button btnTmdbSave;
@@ -76,9 +78,14 @@ namespace Episode_Names.Anisearch
                 choices.Add(new KeyValuePair<string, string>("en", "English"));
                 choices.Add(new KeyValuePair<string, string>("ja", "日本語"));
             }
-            else if (provider == TmdbIndex)
+            else if (provider == TmdbIndex || provider == AniZipIndex)
             {
                 choices.AddRange(MetadataSelection.SupportedLanguages());
+            }
+            else if (provider == JikanIndex)
+            {
+                choices.Add(new KeyValuePair<string, string>("en", "English/Original"));
+                choices.Add(new KeyValuePair<string, string>("ja", "日本語"));
             }
             else
             {
@@ -131,6 +138,12 @@ namespace Episode_Names.Anisearch
             if (cmbWebsite.SelectedIndex == TmdbIndex)
             {
                 await LoadTmdbEpisodesAsync();
+                return;
+            }
+            if (cmbWebsite.SelectedIndex == JikanIndex ||
+                cmbWebsite.SelectedIndex == AniZipIndex)
+            {
+                await LoadAnimeEpisodesAsync();
                 return;
             }
             if (cmbWebsite.SelectedIndex != AnisearchIndex)
@@ -325,6 +338,12 @@ namespace Episode_Names.Anisearch
                 await SearchTmdbAsync();
                 return;
             }
+            if (cmbWebsite.SelectedIndex == JikanIndex ||
+                cmbWebsite.SelectedIndex == AniZipIndex)
+            {
+                await SearchAnimeAsync();
+                return;
+            }
             if (cmbWebsite.SelectedIndex != AnisearchIndex)
                 return;
 
@@ -461,7 +480,14 @@ namespace Episode_Names.Anisearch
         {
             if (listResult.SelectedIndex != -1)
             {
-                Process.Start(((KeyValuePair<string, string>)listResult.SelectedItem).Key);
+                string value = ((KeyValuePair<string, string>)listResult.SelectedItem).Key;
+                if (cmbWebsite.SelectedIndex == JikanIndex ||
+                    cmbWebsite.SelectedIndex == AniZipIndex)
+                {
+                    int malId = JikanProvider.ParseId(value);
+                    Process.Start("https://myanimelist.net/anime/" + malId);
+                }
+                else Process.Start(value);
             }
         }
 
@@ -479,6 +505,12 @@ namespace Episode_Names.Anisearch
             if (cmbWebsite.SelectedIndex == TmdbIndex)
             {
                 await LoadTmdbSeasonsAsync(url);
+                return;
+            }
+            if (cmbWebsite.SelectedIndex == JikanIndex ||
+                cmbWebsite.SelectedIndex == AniZipIndex)
+            {
+                await LoadAnimeSeasonsAsync(url);
                 return;
             }
             if (cmbWebsite.SelectedIndex == AnisearchIndex)
@@ -505,6 +537,12 @@ namespace Episode_Names.Anisearch
             if (cmbWebsite.SelectedIndex == TmdbIndex)
             {
                 await LoadTmdbSeasonsAsync(txtUrl.Text);
+                return;
+            }
+            if (cmbWebsite.SelectedIndex == JikanIndex ||
+                cmbWebsite.SelectedIndex == AniZipIndex)
+            {
+                await LoadAnimeSeasonsAsync(txtUrl.Text);
                 return;
             }
             string language = ((KeyValuePair<string, string>)cmbLanguageEpisodes.SelectedItem).Key;
@@ -793,6 +831,158 @@ namespace Episode_Names.Anisearch
                 if (!IsDisposed)
                     SetTvMazeBusy(false);
             }
+        }
+
+
+        private IEpisodeMetadataProvider CreateAnimeProvider(bool searchLanguage)
+        {
+            string code = "en";
+            ComboBox box = searchLanguage ? cmbLanguageSearch : cmbLanguageEpisodes;
+            if (box.SelectedItem is KeyValuePair<string, string>)
+                code = ((KeyValuePair<string, string>)box.SelectedItem).Key;
+            return cmbWebsite.SelectedIndex == AniZipIndex
+                ? (IEpisodeMetadataProvider)new AniZipProvider(code)
+                : new JikanProvider(code);
+        }
+
+        private async System.Threading.Tasks.Task SearchAnimeAsync()
+        {
+            string query = txtSearch.Text.Trim();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Information,
+                    "Bitte einen Anime-Serientitel eingeben.");
+                return;
+            }
+            int selectedProvider = cmbWebsite.SelectedIndex;
+            IEpisodeMetadataProvider provider = CreateAnimeProvider(true);
+            RememberSearchLanguage();
+            SetTvMazeBusy(true);
+            try
+            {
+                using (var limit = new CancellationTokenSource(TimeSpan.FromSeconds(12)))
+                {
+                    IReadOnlyList<SeriesMatch> found =
+                        await provider.SearchSeriesAsync(query, limit.Token);
+                    if (IsDisposed || cmbWebsite.SelectedIndex != selectedProvider) return;
+                    SetApiSearchResults(found.Select(item =>
+                        new KeyValuePair<string, string>(item.Id,
+                            item.Name + (item.PremiereYear.HasValue
+                                ? " (" + item.PremiereYear.Value + ")" : ""))).ToList());
+                    if (found.Count == 0)
+                        MessageHandler.MessagesOK(MessageBoxIcon.Information,
+                            "Keine Serien auf " + provider.DisplayName + " gefunden.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Anime-Suche nach 12 Sekunden beendet. Anderen Titel/Quelle probieren.");
+            }
+            catch (Exception ex) { ErrorMessage(ex); }
+            finally { if (!IsDisposed) SetTvMazeBusy(false); }
+        }
+
+        private async System.Threading.Tasks.Task LoadAnimeSeasonsAsync(string id)
+        {
+            int malId;
+            if (!int.TryParse(id, out malId) || malId < 1)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte zuerst einen Anime mit gültiger MAL-ID auswählen.");
+                return;
+            }
+            int selectedProvider = cmbWebsite.SelectedIndex;
+            IEpisodeMetadataProvider provider = CreateAnimeProvider(false);
+            SetTvMazeBusy(true);
+            try
+            {
+                using (var limit = new CancellationTokenSource(TimeSpan.FromSeconds(12)))
+                {
+                    IReadOnlyList<SeasonMetadata> seasons =
+                        await provider.GetSeasonsAsync(malId.ToString(), limit.Token);
+                    if (IsDisposed || cmbWebsite.SelectedIndex != selectedProvider) return;
+                    txtUrl.Text = malId.ToString();
+                    var options = new List<KeyValuePair<string, string>> {
+                        new KeyValuePair<string, string>("all", "Alle bekannten Staffeln")
+                    };
+                    options.AddRange(seasons.Where(s => s.Number > 0)
+                        .Select(s => new KeyValuePair<string, string>(
+                            s.Number.ToString(), s.Name)));
+                    cmbSeasons.DataSource = options;
+                    cmbSeasons.DisplayMember = "Value";
+                    cmbSeasons.ValueMember = "Key";
+                    cmbSeasons.SelectedIndex = -1;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Staffelabfrage nach 12 Sekunden beendet.");
+            }
+            catch (Exception ex) { ErrorMessage(ex); }
+            finally { if (!IsDisposed) SetTvMazeBusy(false); }
+        }
+
+        private async System.Threading.Tasks.Task LoadAnimeEpisodesAsync()
+        {
+            int malId;
+            if (!int.TryParse(txtUrl.Text.Trim(), out malId) || malId < 1 ||
+                !(cmbSeasons.SelectedItem is KeyValuePair<string, string>))
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Bitte Anime und Staffel ausdrücklich auswählen.");
+                return;
+            }
+            string selection = ((KeyValuePair<string, string>)cmbSeasons.SelectedItem).Key;
+            int season = 0;
+            bool all = selection == "all";
+            if (!all && !int.TryParse(selection, out season)) return;
+            IEpisodeMetadataProvider provider = CreateAnimeProvider(false);
+            SetTvMazeBusy(true);
+            try
+            {
+                using (var limit = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                {
+                    IReadOnlyList<EpisodeMetadata> data = await provider.GetEpisodesAsync(
+                        malId.ToString(), false, limit.Token);
+                    var usable = data.Where(ep => ep.EpisodeNumber.HasValue &&
+                        ep.EpisodeNumber.Value > 0 && ep.SeasonNumber > 0 &&
+                        !string.IsNullOrWhiteSpace(ep.Title) &&
+                        (all || ep.SeasonNumber == season))
+                        .OrderBy(ep => ep.SeasonNumber)
+                        .ThenBy(ep => ep.EpisodeNumber.Value).ToList();
+                    if (usable.Count == 0)
+                        throw new MetadataProviderException(
+                            "Keine eindeutig nummerierten Anime-Episoden für diese Auswahl.");
+                    string targetLanguage = Properties.Settings.Default.PreferredMetadataLanguage;
+                    string notice = "Quelle: " + provider.DisplayName +
+                        "\nZielsprache: " + targetLanguage +
+                        "\nEpisoden: " + usable.Count +
+                        "\nUnterschiedliche Quellennummerierungen NICHT als identisch annehmen." +
+                        (provider.Id == "jikan"
+                            ? "\nJikan: MAL-Animeeintrag wird lokal als Staffel 1 betrachtet."
+                            : "\nAniZip: nur explizit belegte Staffel-/Episodenpaare.") +
+                        "\nVorschlag vor Umbenennung prüfen. Daten übernehmen?";
+                    if (MessageBox.Show(this, notice, "Anime-Quelle prüfen",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                    episodeList = usable.Select(ep =>
+                        (all ? "S" + ep.SeasonNumber.ToString("00") +
+                            "E" + ep.EpisodeNumber.Value.ToString("00")
+                            : ep.EpisodeNumber.Value.ToString()) +
+                        "\t" + CleanTvMazeTitle(ep.Title)).ToList();
+                    DialogResult = DialogResult.OK;
+                    Close();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                    "Episodenabfrage hat das Zeitlimit überschritten.");
+            }
+            catch (Exception ex) { ErrorMessage(ex); }
+            finally { if (!IsDisposed) SetTvMazeBusy(false); }
         }
 
         private void SetTvMazeBusy(bool busy)
