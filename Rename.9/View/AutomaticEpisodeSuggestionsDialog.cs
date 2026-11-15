@@ -35,6 +35,8 @@ namespace Episode_Names.View
         private readonly List<Candidate> candidates = new List<Candidate>();
         private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
         private readonly Label status;
+        private readonly TextBox queryBox;
+        private readonly Button searchAgain;
         private readonly ListBox matches;
         private readonly DataGridView preview;
         private readonly Button load;
@@ -67,6 +69,16 @@ namespace Episode_Names.View
                 Dock = DockStyle.Top, Height = 46, Padding = new Padding(9),
                 Text = "Online-Abgleich nur nach ausdrücklich ausgewählter Serie. " +
                     "Die vorgeschlagenen Episodentitel sind editierbar." };
+
+            var searchBar = new FlowLayoutPanel {
+                Dock = DockStyle.Top, Height = 39, Padding = new Padding(7, 4, 7, 4) };
+            searchBar.Controls.Add(new Label { Text = "Serientitel:", Width = 82,
+                TextAlign = ContentAlignment.MiddleLeft, Height = 26 });
+            queryBox = new TextBox { Width = 460, Text = query };
+            searchAgain = new Button { Text = "Erneut suchen", Width = 120 };
+            searchAgain.Click += async (s, e) => await SearchAsync();
+            searchBar.Controls.Add(queryBox);
+            searchBar.Controls.Add(searchAgain);
 
             matches = new ListBox { Dock = DockStyle.Top, Height = 120 };
             matches.SelectedIndexChanged += (s, e) => load.Enabled = !busy && matches.SelectedItem != null;
@@ -104,6 +116,7 @@ namespace Episode_Names.View
             var box = new Panel { Dock = DockStyle.Fill };
             box.Controls.Add(preview);
             box.Controls.Add(matches);
+            box.Controls.Add(searchBar);
             box.Controls.Add(notice);
             box.Controls.Add(status);
             Controls.Add(box);
@@ -123,12 +136,18 @@ namespace Episode_Names.View
 
         private async Task SearchAsync()
         {
-            if (files.Count == 0 || string.IsNullOrWhiteSpace(query))
+            string searchTerm = queryBox.Text.Trim();
+            if (files.Count == 0 || string.IsNullOrWhiteSpace(searchTerm))
             {
                 status.Text = "Kein geeigneter Ordner bzw. keine Dateien gefunden.";
                 return;
             }
             SetBusy(true);
+            candidates.Clear();
+            current = null;
+            preview.Rows.Clear();
+            matches.Items.Clear();
+            accept.Enabled = false;
             string language = MetadataSelection.CanonicalLanguage(
                 Properties.Settings.Default.PreferredMetadataLanguage);
             var providers = new List<IEpisodeMetadataProvider>();
@@ -145,23 +164,27 @@ namespace Episode_Names.View
             }
             providers.Add(new TvMazeProvider());
 
-            status.Text = "Suche: " + query + " | Sprache: " + language.ToUpperInvariant() +
+            status.Text = "Suche: " + searchTerm + " | Sprache: " + language.ToUpperInvariant() +
                 " | TVmaze liefert Originaltitel; TMDB nur mit gespeichertem Key.";
             string errors = tmdbError;
+            int rawResults = 0;
             foreach (IEpisodeMetadataProvider provider in providers)
             {
                 try
                 {
                     IReadOnlyList<SeriesMatch> results = await provider.SearchSeriesAsync(
-                        query, cancellation.Token);
+                        searchTerm, cancellation.Token);
                     if (IsDisposed || cancellation.IsCancellationRequested) return;
+                    rawResults += results.Count;
                     foreach (SeriesMatch match in results.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
                     {
-                        int score = Normalize(match.Name) == Normalize(query) ? 100 :
-                            Normalize(match.Name).Contains(Normalize(query)) ||
-                            Normalize(query).Contains(Normalize(match.Name)) ? 40 : 0;
-                        if (score > 0)
-                            candidates.Add(new Candidate { Provider = provider, Series = match, Rank = score });
+                        int score = Normalize(match.Name) == Normalize(searchTerm) ? 100 :
+                            Normalize(match.Name).Contains(Normalize(searchTerm)) ||
+                            Normalize(searchTerm).Contains(Normalize(match.Name)) ? 40 : 0;
+                        // Show even low-confidence results. TVmaze may use the
+                        // English/original name for a German folder name.
+                        // These are suggestions, never automatically selected.
+                        candidates.Add(new Candidate { Provider = provider, Series = match, Rank = score });
                     }
                 }
                 catch (OperationCanceledException) { return; }
@@ -179,11 +202,13 @@ namespace Episode_Names.View
             matches.Items.AddRange(candidates.Cast<object>().ToArray());
             SetBusy(false);
             if (candidates.Count == 0)
-                status.Text = "Keine eindeutigen Serienvorschläge für „" + query +
-                    "“. " + errors + "Bitte die manuelle Website-Suche verwenden.";
+                status.Text = rawResults == 0
+                    ? "Keine Treffer von den Datenquellen für „" + searchTerm +
+                      "“. Anderen/englischen Titel eingeben und erneut suchen. " + errors
+                    : "Keine verwendbaren Treffer; anderen Titel suchen. " + errors;
             else
                 status.Text = "Gefundene Serien: " + candidates.Count +
-                    ". Die passende Serie prüfen. " + errors;
+                    " (inkl. unsicherer Treffer). Bitte selbst prüfen und auswählen. " + errors;
 
             // Auto-fetch only when exactly one match is a perfect title match.
             // Multiple provider hits or aliases need explicit user selection.
@@ -261,6 +286,8 @@ namespace Episode_Names.View
         {
             busy = value;
             load.Enabled = !busy && matches.SelectedItem != null;
+            searchAgain.Enabled = !busy;
+            queryBox.Enabled = !busy;
             accept.Enabled = !busy && current != null && current.Count > 0 &&
                 current.All(x => x.IsMatched);
         }
