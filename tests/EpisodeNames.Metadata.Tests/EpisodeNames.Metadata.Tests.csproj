@@ -34,6 +34,8 @@
     <Compile Include="AnisearchUrlChecks.cs" />
     <Compile Include="FolderSeriesNameChecks.cs" />
     <Compile Include="EpisodeFileMatcherChecks.cs" />
+    <Compile Include="FilenameCharactersChecks.cs" />
+    <Compile Include="..\..\Rename.9\Helper\FilenameCharacters.cs"><Link>FilenameCharacters.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\EpisodeFileMatcher.cs"><Link>EpisodeFileMatcher.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\FolderSeriesName.cs"><Link>FolderSeriesName.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\AnisearchUrl.cs"><Link>AnisearchUrl.cs</Link></Compile>
