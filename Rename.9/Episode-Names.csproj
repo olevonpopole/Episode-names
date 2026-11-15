@@ -104,6 +104,7 @@
     <Compile Include="Metadata\AnisearchUrl.cs" />
     <Compile Include="Metadata\FolderSeriesName.cs" />
     <Compile Include="Metadata\EpisodeFileMatcher.cs" />
+    <Compile Include="Metadata\SeasonNumberResolver.cs" />
     <Compile Include="Metadata\AnimeTitleAliases.cs" />
     <Compile Include="View\AutomaticEpisodeSuggestionsDialog.cs" />
     <Compile Include="Renaming\RenamePlanner.cs" />
