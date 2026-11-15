@@ -50,14 +50,16 @@ namespace Episode_Names.Metadata
                 query, cancellationToken).ConfigureAwait(false));
         }
 
-        public Task<IReadOnlyList<SeasonMetadata>> GetSeasonsAsync(
+        public async Task<IReadOnlyList<SeasonMetadata>> GetSeasonsAsync(
             string seriesId, CancellationToken cancellationToken)
         {
             JikanProvider.ParseId(seriesId);
-            return Task.FromResult((IReadOnlyList<SeasonMetadata>)new[] {
-                new SeasonMetadata(1, seriesId,
-                    "AniZip – TVDB-Staffelzuordnung (Dateinummern prüfen)")
-            });
+            var episodes = await GetEpisodesAsync(seriesId, false, cancellationToken)
+                .ConfigureAwait(false);
+            return episodes.Where(ep => ep.SeasonNumber > 0)
+                .Select(ep => ep.SeasonNumber).Distinct().OrderBy(n => n)
+                .Select(n => new SeasonMetadata(n, seriesId,
+                    "AniZip-Staffel " + n + " (Zuordnung prüfen)")).ToList();
         }
 
         public async Task<IReadOnlyList<EpisodeMetadata>> GetEpisodesAsync(
