@@ -194,6 +194,43 @@ namespace Episode_Names.View
                     errors += provider.DisplayName + ": " + ex.GetType().Name + ". ";
                 }
             }
+            // When a translated/localized folder title is not indexed by
+            // TVmaze, ask AniList for documented alternate anime names, then
+            // retry TVmaze with up to three aliases. Do not guess translations.
+            // Aliased results are always manual choices, never auto-approved.
+            if (candidates.Count == 0 || candidates.All(x => x.Rank == 0))
+            {
+                try
+                {
+                    IReadOnlyList<string> aliases = await new AnimeTitleAliases()
+                        .FindAsync(searchTerm, cancellation.Token);
+                    IEpisodeMetadataProvider tvmaze = providers.First(p => p.Id == "tvmaze");
+                    foreach (string alias in aliases.Take(3))
+                    {
+                        cancellation.Token.ThrowIfCancellationRequested();
+                        IReadOnlyList<SeriesMatch> suggestions = await tvmaze.SearchSeriesAsync(
+                            alias, cancellation.Token);
+                        if (IsDisposed || cancellation.IsCancellationRequested) return;
+                        rawResults += suggestions.Count;
+                        foreach (SeriesMatch suggestion in suggestions.Where(x =>
+                            !string.IsNullOrWhiteSpace(x.Name)))
+                        {
+                            if (!candidates.Any(x => x.Provider.Id == tvmaze.Id &&
+                                    x.Series.Id == suggestion.Id))
+                                candidates.Add(new Candidate {
+                                    Provider = tvmaze, Series = suggestion, Rank = 15
+                                });
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception)
+                {
+                    // The optional alias index is a hint, not a requirement.
+                    errors += "Alternative Anime-Titel konnten nicht geladen werden. ";
+                }
+            }
+
             candidates.Sort((a, b) => b.Rank != a.Rank ?
                 b.Rank.CompareTo(a.Rank) :
                 string.Compare(a.ToString(), b.ToString(), StringComparison.OrdinalIgnoreCase));
