@@ -26,7 +26,7 @@ namespace Episode_Names.Helper
             Version incoming;
             if (!Version.TryParse(normalized, out incoming)) return false;
             Version ours = current ?? new Version(0, 0);
-            return incoming > ours;
+            return incoming.CompareTo(ours) > 0;
         }
 
         internal static void VerifySha256(string filePath, string expected)
