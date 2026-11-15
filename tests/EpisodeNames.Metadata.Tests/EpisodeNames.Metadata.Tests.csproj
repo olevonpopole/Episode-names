@@ -35,6 +35,10 @@
     <Compile Include="FolderSeriesNameChecks.cs" />
     <Compile Include="EpisodeFileMatcherChecks.cs" />
     <Compile Include="SeasonNumberChecks.cs" />
+    <Compile Include="AnimeEpisodeSourcesChecks.cs" />
+    <Compile Include="..\..\Rename.9\Metadata\JikanProvider.cs"><Link>JikanProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\AniZipProvider.cs"><Link>AniZipProvider.cs</Link></Compile>
+    <Compile Include="..\..\Rename.9\Metadata\MetadataSourcePriority.cs"><Link>MetadataSourcePriority.cs</Link></Compile>
     <Compile Include="..\..\Rename.9\Metadata\SeasonNumberResolver.cs"><Link>SeasonNumberResolver.cs</Link></Compile>
     <Compile Include="FilenameCharactersChecks.cs" />
     <Compile Include="AnimeTitleAliasesChecks.cs" />
