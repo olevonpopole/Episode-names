@@ -291,7 +291,10 @@ namespace Episode_Names.View
                     MessageBox.Show(this, "Episodentitel darf nicht leer sein und keine Tabs/Zeilenumbrüche enthalten.");
                     return;
                 }
-                result.Add((i + 1).ToString() + "\t" + title.Trim());
+                EpisodeFileIdentity identity = current[i].File;
+                string episodeId = "S" + identity.Season.Value.ToString("00") +
+                    "E" + identity.Episode.Value.ToString("00");
+                result.Add(episodeId + "\t" + title.Trim());
             }
 
             string message = "Es werden " + result.Count +
