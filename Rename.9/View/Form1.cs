@@ -92,26 +92,43 @@ namespace Episode_Names
 
             try
             {
-                if (data.Any(string.IsNullOrWhiteSpace))
-                {
-                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
-                        "Die Daten enthalten eine leere Zeile. Bitte diese vor der Umbenennung entfernen.");
-                    return;
-                }
-
                 List<FileInfo> files = GetVisibleFiles();
-                if (files.Count != data.Count)
+                var decision = new RenameCountDecision(files.Count, data.Count);
+                if (!decision.CanPreview)
                 {
                     MessageHandler.MessagesOK(MessageBoxIcon.Warning,
-                        "Abbruch vor der Vorschau: " + files.Count + " Dateien und " +
-                        data.Count + " Datenzeilen passen nicht zusammen.\n" +
-                        "Bitte fehlende/überzählige Zeilen zuerst im Dateneditor korrigieren.");
+                        "Es gibt keine passenden Datei-/Datenpaare für die Vorschau.");
                     return;
                 }
 
-                pgBar.Maximum = Math.Max(1, files.Count);
+                // An inner empty row in the portion to be used is ambiguous and unsafe.
+                if (data.Take(decision.PairCount).Any(string.IsNullOrWhiteSpace))
+                {
+                    MessageHandler.MessagesOK(MessageBoxIcon.Warning,
+                        "Die zu verwendenden Daten enthalten eine leere Zeile. Bitte diese zuerst korrigieren.");
+                    return;
+                }
+
+                if (decision.RequiresConfirmation)
+                {
+                    string warning = files.Count + " Dateien, aber " + data.Count +
+                        " Datenzeilen gefunden.\n\n" +
+                        "Es werden höchstens die ersten " + decision.PairCount +
+                        " Dateien in der sortierten Reihenfolge mit den ersten " +
+                        decision.PairCount + " Datenzeilen verbunden.\n" +
+                        decision.UntouchedFiles + " übrige Dateien bleiben unverändert.\n" +
+                        decision.IgnoredRows + " übrige Datenzeilen werden ignoriert.\n\n" +
+                        "Bitte die Zuordnung in der anschließenden Vorschau sorgfältig prüfen.\n" +
+                        "Trotzdem fortfahren?";
+                    if (MessageBox.Show(this, warning, "Abweichende Datei-/Datenanzahl",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                        return;
+                }
+
+                pgBar.Maximum = Math.Max(1, decision.PairCount);
                 var requests = new List<RenameRequest>();
-                for (int i = 0; i < files.Count; i++)
+                for (int i = 0; i < decision.PairCount; i++)
                 {
                     pgBar.Value = i;
                     FileInfo file = files[i];
