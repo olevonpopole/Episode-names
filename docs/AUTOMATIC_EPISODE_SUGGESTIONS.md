@@ -75,3 +75,11 @@ Beispiel: `%series - S%season - %pos` ergibt `Elainas Reise - S01 - Episodentite
 Fehlende oder widersprüchliche Angaben (z. B. Datei S01E03, Datenzeile S02E03) **blockieren die Vorschau**, statt eine falsche Staffelnummer zu erfinden. Auch widersprechende Episodennummern und mehrdeutige Staffel-/Folgenmarker werden zurückgewiesen.
 
 Manuelle Abnahme: Testordner `Show` mit `Show.S02E03.mkv`, Datenzeile `S02E03<TAB>Titel`, Format `%series - S%season - %pos`; in der Umbenennungsvorschau `Show - S02 - Titel.mkv` erwarten. Vorschau abbrechen und die Originaldatei auf Unverändertheit prüfen.
+
+## Sprachauswahl direkt in der automatischen Vorschau
+
+Der automatische Datenvorschlagsdialog besitzt jetzt eine eigene Auswahl **Sprache: Deutsch / English / 日本語**, die mit der zuletzt gespeicherten Metadatensprache vorausgefüllt ist. Beim Start einer Suche wird diese Auswahl als neue gemeinsame Präferenz gespeichert. Nach einer Änderung im Dialog werden frühere Suchtreffer und Episodentitel geleert; **Erneut suchen** lädt neue Treffer mit der ausgewählten Sprache.
+
+TMDB kann mit eigenem API-Key deutsche und englische Episodentitel liefern und nutzt seinen DE/EN-Fallback. Für Japanisch ist die TMDB-Lokalisierung in der derzeitigen Implementierung **nicht** verfügbar; TVmaze gibt ausschließlich Originaltitel zurück. Das Ergebnisraster kennzeichnet deshalb pro Folge die tatsächliche Sprache und gegebenenfalls `Fallback für de`/`Fallback für ja` bzw. `Original/unbekannt`. Eine Zielsprache wird nie als tatsächlich gelieferte Sprache ausgegeben, wenn die Quelle sie nicht bestätigt.
+
+**Windows-GUI-Nachtests:** Zunächst Deutsch auswählen und suchen, dann Englisch umschalten; vorherige Treffer/Zuordnungen müssen verschwinden und die erneute Suche muss die gewählte Sprache benutzen. Dialog schließen/erneut öffnen: letzte Suchsprache muss vorausgewählt sein. Ohne TMDB-Key muss TVmaze weiterhin funktionieren und Original/unbekannt anzeigen. 日本語 prüfen: keine Behauptung, dass TMDB japanische Episodentitel liefert.
