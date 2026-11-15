@@ -54,7 +54,9 @@ namespace Episode_Names.Metadata.Tests
             {
                 Requests++;
                 Assert(request.Method == HttpMethod.Post &&
-                    request.RequestUri.AbsoluteUri == "https://graphql.anilist.co",
+                    request.RequestUri.Scheme == Uri.UriSchemeHttps &&
+                    request.RequestUri.Host == "graphql.anilist.co" &&
+                    request.RequestUri.AbsolutePath == "/",
                     "expected POST endpoint");
                 RequestBody = await request.Content.ReadAsStringAsync();
                 return new HttpResponseMessage(HttpStatusCode.OK) {
